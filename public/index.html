@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHIPS STAKING</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>CHIPS STAKING</h1>
+        <p>Total Staking Balance: <span id="poolBalance">0</span> USDT, <span id="poolBalanceChips">0</span> CHIPS</p>
+        <p>Total Stakers: <span id="totalStaker">0</span></p>
+        <p id="walletStatus"></p>
+        <button id="connectWallet" onclick="connectWallet()">Connect Wallet</button>
+
+        <div class="tabs">
+            <button onclick="showTab('defaultPool')">Top Pool</button>
+            <button onclick="showTab('newPools')">New Pools</button>
+            <button onclick="showTab('myCreatedPools')">My Pools</button>
+            <button onclick="showTab('myStakes')">My Stakes</button>
+            <button onclick="showTab('createPool')">Create Pool</button>
+            <button onclick="showTab('creatorTools')">Creator Tools</button>
+            <button onclick="showTab('ownerTools')">Owner Tools</button>
+        </div>
+        <div id="defaultPool" class="tab">
+            <h2>Top Pools</h2>
+            <div id="defaultPoolCard" class="pool-grid"></div>
+        </div>
+        <div id="newPools" class="tab">
+            <h2>New Pools</h2>
+            <div id="newPoolCard" class="pool-grid"></div>
+        </div>
+        <div id="myCreatedPools" class="tab">
+            <h2>My Created Pools</h2>
+            <div id="poolList" class="pool-grid"></div>
+        </div>
+        <div id="myStakes" class="tab">
+            <h2>My Stakes</h2>
+            <div id="myStakesCard" class="pool-grid"></div>
+        </div>
+        <div id="createPool" class="tab">
+            <h2>Create New Pool</h2>
+            <div id="createPoolForm" class="pool-grid"></div>
+        </div>
+        <div id="creatorTools" class="tab">
+            <h2>Creator Tools</h2>
+            <div id="creatorToolContent" class="pool-grid"></div>
+        </div>
+        <div id="ownerTools" class="tab">
+            <h2>Owner Tools</h2>
+            <div id="ownerToolContent" class="pool-grid"></div>
+        </div>
+        <p id="ownerStatus"></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
