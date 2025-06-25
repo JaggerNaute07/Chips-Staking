@@ -1486,7 +1486,7 @@ const IERC20_ABI = [
     {"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"type":"function"}
 ];
 
-// Global variables
+/// Global variables
 let web3;
 let contract;
 let account = null;
@@ -1495,6 +1495,8 @@ let isCreator = false;
 let isNewPoolsHidden = false;
 let isCreatePoolHidden = false;
 let userInteractions = [];
+let db = null; // Deklarasi eksplisit di global scope
+
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY || "YOUR_API_KEY",
   authDomain: process.env.FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
@@ -1506,16 +1508,22 @@ const firebaseConfig = {
 
 async function initFirebase() {
   try {
-    let attempts = 0;
-    const maxAttempts = 5;
-    while (!window.firebase && window.firebase.firestore && attempts < maxAttempts) {
-      console.log('Waiting for Firebase SDK to load... Attempt ${attempts + 1}');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
+    // Pastikan window.firebase dan firestore tersedia
+    if (!window.firebase || !window.firebase.firestore) {
+      let attempts = 0;
+      const maxAttempts = 5;
+      while (attempts < maxAttempts) {
+        console.log(`Waiting for Firebase SDK to load... Attempt ${attempts + 1}`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Delay 1 detik
+        attempts++;
+        if (window.firebase && window.firebase.firestore) break;
+      }
+      if (!window.firebase || !window.firebase.firestore) {
+        throw new Error('Firebase SDK not loaded. Ensure Firebase scripts are included in index.html');
+      }
     }
-    if (!window.firebase || window.firebase.firestore) {
-      throw new Error('Firebase SDK not loaded. Ensure Firebase scripts are included in index.html');
-    }
+
+    // Cek apakah Firebase sudah diinisialisasi
     if (!window.firebase.apps.length) {
       window.firebase.initializeApp(firebaseConfig);
     }
@@ -1527,9 +1535,10 @@ async function initFirebase() {
   }
 }
 
-// Panggil initFirebase saat aplikasi dimulai
-initFirebase().catch(error => console.error('Failed to initialize Firebase:', error));
-
+// Panggil initFirebase saat DOM siap
+document.addEventListener('DOMContentLoaded', () => {
+  initFirebase().catch(error => console.error('Failed to initialize Firebase:', error));
+});
 // Initialize Web3 with RPC fallback
 async function initWeb3() {
   try {
@@ -3797,7 +3806,7 @@ async function loadPinnedPoolIds() {
       return [];
     }
     if (!db) {
-      console.error('Firestore not initialized, returning empty pinned pool IDs');
+      console.error('Firestore not initialized. Cannot load pinned pool IDs.');
       return [];
     }
     const docRef = db.collection('users').doc(account.toLowerCase());
@@ -3821,7 +3830,7 @@ async function savePinnedPoolIds(pinnedPoolIds) {
       return;
     }
     if (!db) {
-      console.error('Firestore not initialized, cannot save pinned pool IDs');
+      console.error('Firestore not initialized. Cannot save pinned pool IDs.');
       return;
     }
     const docRef = db.collection('users').doc(account.toLowerCase());
@@ -3907,13 +3916,13 @@ async function initializeAppData() {
 async function pinPool() {
   try {
     const poolId = document.getElementById('pinPoolId').value;
-    const pinStatus = document.getElementById('pinStatus').value;
+    const pinStatus = document.getElementById('pinStatus');
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
     if (!db) {
-      console.error('Firestore not initialized. Please try again later.');
-      pinStatus.textContent = 'Error: Firestore not initialized, please try again later';
+      console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
+      pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
       return;
     }
 
@@ -3938,20 +3947,20 @@ async function pinPool() {
   } catch (error) {
     console.error('Pin pool error:', error);
     document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
-    };
   }
+}
 
 // Unpin pool
 async function unpinPool() {
   try {
     const poolId = document.getElementById('pinPoolId').value;
-    const pinStatus = document.getElementById('pinStatus').value;
+    const pinStatus = document.getElementById('pinStatus');
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
     if (!db) {
-      console.error('Firestore not initialized. Please try again later');
-      pinStatus.textContent = 'Error: Firestore not initialized, please try again later';
+      console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
+      pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
       return;
     }
 
@@ -3961,7 +3970,7 @@ async function unpinPool() {
       return;
     }
 
-    pinnedPoolIds = pinnerPinnedPoolIds(id => id !== Number(poolId));
+    pinnedPoolIds = pinnedPoolIds.filter(id => id !== Number(poolId));
     await savePinnedPoolIds(pinnedPoolIds);
 
     pinStatus.textContent = `Pool ${poolId} unpinned successfully`;
@@ -3972,10 +3981,10 @@ async function unpinPool() {
     });
     await saveUserInteraction(account, `Unpin Pool: ${poolId}`);
     loadOwnerTools();
-    document.getElementById('defaultPoolTab').click();
+    showTab('defaultPool');
   } catch (error) {
     console.error('Unpin pool error:', error);
-    documentById.get('pinStatus').textContent = `Error: ${error.message}`;
+    document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
   }
 }
 
