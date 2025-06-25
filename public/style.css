@@ -1,0 +1,360 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Press Start 2P', monospace;
+  background-color: #000000;
+  color: #ff99cc;
+  text-align: center;
+  padding: 20px;
+  image-rendering: pixelated;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+h1,
+h2 {
+  font-size: 24px;
+  text-shadow: 2px 2px #000;
+  color: #ff99cc;
+  margin-bottom: 20px;
+}
+
+h3 {
+  font-size: 16px;
+  text-shadow: 1px 1px #000;
+  color: #ff99cc;
+  margin-bottom: 15px;
+}
+
+button {
+  background-color: #ff99cc;
+  border: 2px solid #ffffff;
+  color: #000000;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  text-shadow: 1px 1px #000;
+  cursor: pointer;
+  padding: 10px 20px;
+  margin: 10px 5px;
+  transition: transform 0.1s;
+}
+
+button:hover {
+  transform: scale(1.1);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input,
+select {
+  background-color: #ffffff;
+  color: #000000;
+  border: 2px solid #ff99cc;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  padding: 10px;
+  margin: 5px;
+  width: 100%;
+  max-width: 180px;
+  text-align: center;
+}
+
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+  accent-color: #ff99cc;
+}
+
+label {
+  color: #ff99cc;
+  font-size: 12px;
+  text-shadow: 1px 1px #000;
+  display: flex;
+  align-items: center;
+  margin: 5px 0;
+}
+
+p {
+  font-size: 12px;
+  text-shadow: 1px 1px #000;
+  color: #ff99cc;
+  margin: 5px 0;
+}
+
+#walletStatus,
+#ownerStatus {
+  color: #ff4d4d;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.container {
+  background-color: transparent;
+  padding: 10px;
+  max-width: 1200px;
+  margin: auto;
+  flex-grow: 1;
+}
+
+.pool-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(300px, 1fr));
+  gap: 20px;
+  justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px;
+}
+
+.tab-buttons {
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tab-buttons button {
+  background-color: #ff99cc;
+  border: 2px solid #ffffff;
+  color: #000000;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  text-shadow: 1px 1px #000;
+  padding: 12px 20px;
+  margin: 5px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.tab-buttons button:hover {
+  transform: scale(1.1);
+}
+
+.tab-buttons button.active {
+  background-color: #ffffff;
+  color: #ff99cc;
+}
+
+.tab {
+  display: none; /* Default hidden, dikontrol oleh showTab */
+}
+
+.tab.active {
+  display: block;
+}
+
+#connectWallet {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+#walletStatus {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  color: #ffffff;
+  font-size: 10px;
+}
+
+#defaultPoolCard,
+#createPoolForm,
+#creatorToolContent,
+#ownerToolContent {
+  padding: 0;
+  max-width: 1200px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  margin: 10px auto;
+  display: block;
+}
+
+#newPoolCard,
+#poolList,
+#myStakesCard {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.pool-card,
+.card,
+.control-section {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #ff99cc;
+  border-radius: 5px;
+  max-width: 350px;
+  width: 100%;
+  text-align: center;
+  word-break: break-word;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.pool-card input,
+.card input,
+.control-section input {
+  width: 120px;
+  margin-right: 5px;
+  font-size: 10px;
+}
+
+.pool-card div,
+.card div,
+.control-section div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 5px 0;
+}
+
+.pool-card button,
+.card button,
+.control-section button {
+  padding: 5px 10px;
+  font-size: 10px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .pool-grid {
+    grid-template-columns: repeat(2, minmax(300px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .pool-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tambahan CSS untuk layout dinamis berdasarkan jumlah card */
+#defaultPoolCard.pool-grid,
+#newPoolCard.pool-grid,
+#poolList.pool-grid,
+#myStakesCard.pool-grid {
+  display: grid;
+  gap: 20px;
+  justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+/* 1 card: tengah */
+#defaultPoolCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+#newPoolCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+#poolList.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+#myStakesCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)) {
+  grid-template-columns: minmax(300px, 350px);
+  justify-content: center;
+}
+
+/* 2 card: tengah berdampingan */
+#defaultPoolCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+#newPoolCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+#poolList.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+#myStakesCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)) {
+  grid-template-columns: repeat(2, minmax(300px, 350px));
+  justify-content: center;
+}
+
+/* 3 card atau lebih: grid 3 kolom, card ke-4 dst turun ke bawah */
+#defaultPoolCard.pool-grid:has(.pool-card:nth-child(3)),
+#newPoolCard.pool-grid:has(.pool-card:nth-child(3)),
+#poolList.pool-grid:has(.pool-card:nth-child(3)),
+#myStakesCard.pool-grid:has(.pool-card:nth-child(3)) {
+  grid-template-columns: repeat(3, minmax(300px, 1fr));
+  justify-content: center;
+}
+
+/* Pastikan pool-card rapi */
+#defaultPoolCard.pool-grid .pool-card,
+#newPoolCard.pool-grid .pool-card,
+#poolList.pool-grid .pool-card,
+#myStakesCard.pool-grid .pool-card {
+  max-width: 350px;
+  width: 100%;
+  min-height: 300px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #ff99cc;
+  border-radius: 5px;
+  text-align: center;
+  word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+/* Media query override untuk responsivitas */
+@media (max-width: 900px) {
+  #defaultPoolCard.pool-grid,
+  #newPoolCard.pool-grid,
+  #poolList.pool-grid,
+  #myStakesCard.pool-grid {
+    grid-template-columns: repeat(2, minmax(300px, 1fr));
+  }
+  /* 1 card: tetap tengah */
+  #defaultPoolCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+  #newPoolCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+  #poolList.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+  #myStakesCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)) {
+    grid-template-columns: minmax(300px, 350px);
+  }
+  /* 2 card: tetap berdampingan */
+  #defaultPoolCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+  #newPoolCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+  #poolList.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+  #myStakesCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)) {
+    grid-template-columns: repeat(2, minmax(300px, 350px));
+  }
+}
+
+@media (max-width: 600px) {
+  #defaultPoolCard.pool-grid,
+  #newPoolCard.pool-grid,
+  #poolList.pool-grid,
+  #myStakesCard.pool-grid {
+    grid-template-columns: 1fr;
+  }
+  /* 1 atau 2 card: tetap tengah */
+  #defaultPoolCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+  #newPoolCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+  #poolList.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+  #myStakesCard.pool-grid:has(.pool-card:nth-child(1):nth-last-child(1)),
+  #defaultPoolCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+  #newPoolCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+  #poolList.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)),
+  #myStakesCard.pool-grid:has(.pool-card:nth-child(2):nth-last-child(1)) {
+    grid-template-columns: minmax(300px, 350px);
+  }
+}
