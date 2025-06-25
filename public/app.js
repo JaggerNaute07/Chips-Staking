@@ -1503,16 +1503,15 @@ const firebaseConfig = {
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
   appId: process.env.FIREBASE_APP_ID || "YOUR_APP_ID"
 };
-// Inisialisasi Firebase App and Firestore
-firebase.initializeApp(firebaseConfig);
+// Inisialisasi Firebase dan Firestore
 let db;
 try {
-  if (typeof firebase !== 'undefined' && firebase.firestore) {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.firestore();
+  if (typeof window.firebase !== 'undefined' && window.firebase.firestore) {
+    window.firebase.initializeApp(firebaseConfig);
+    db = window.firebase.firestore();
     console.log('Firebase initialized successfully');
   } else {
-    console.error('Firebase SDK not loaded');
+    console.error('Firebase SDK not loaded. Ensure Firebase scripts are included in index.html');
   }
 } catch (error) {
   console.error('Firebase initialization failed:', error);
@@ -1817,6 +1816,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 window.addEventListener('poolUpdated', async (event) => {
+
   const { poolId } = event.detail;
   if (typeof loadPool === 'function') {
     await loadPool([poolId]);
