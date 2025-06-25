@@ -1503,20 +1503,32 @@ const firebaseConfig = {
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
   appId: process.env.FIREBASE_APP_ID || "YOUR_APP_ID"
 };
-// Inisialisasi Firebase dan Firestore
-let db;
-try {
-  if (typeof window.firebase !== 'undefined' && window.firebase.firestore) {
-    window.firebase.initializeApp(firebaseConfig);
+
+async function initFirebase() {
+  try {
+    let attempts = 0;
+    const maxAttempts = 5;
+    while (!window.firebase && window.firebase.firestore && attempts < maxAttempts) {
+      console.log('Waiting for Firebase SDK to load... Attempt ${attempts + 1}');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      attempts++;
+    }
+    if (!window.firebase || window.firebase.firestore) {
+      throw new Error('Firebase SDK not loaded. Ensure Firebase scripts are included in index.html');
+    }
+    if (!window.firebase.apps.length) {
+      window.firebase.initializeApp(firebaseConfig);
+    }
     db = window.firebase.firestore();
     console.log('Firebase initialized successfully');
-  } else {
-    console.error('Firebase SDK not loaded. Ensure Firebase scripts are included in index.html');
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+    db = null; // Pastikan db null kalau gagal
   }
-} catch (error) {
-  console.error('Firebase initialization failed:', error);
 }
 
+// Panggil initFirebase saat aplikasi dimulai
+initFirebase().catch(error => console.error('Failed to initialize Firebase:', error));
 
 // Initialize Web3 with RPC fallback
 async function initWeb3() {
@@ -3895,13 +3907,13 @@ async function initializeAppData() {
 async function pinPool() {
   try {
     const poolId = document.getElementById('pinPoolId').value;
-    const pinStatus = document.getElementById('pinStatus');
+    const pinStatus = document.getElementById('pinStatus').value;
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
-    if (typeof db === 'undefined' || !db) {
-      console.error('Firestore not initialized');
-      pinStatus.textContent = 'Error: Firestore not initialized';
+    if (!db) {
+      console.error('Firestore not initialized. Please try again later.');
+      pinStatus.textContent = 'Error: Firestore not initialized, please try again later';
       return;
     }
 
@@ -3926,20 +3938,20 @@ async function pinPool() {
   } catch (error) {
     console.error('Pin pool error:', error);
     document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
+    };
   }
-}
 
 // Unpin pool
 async function unpinPool() {
   try {
     const poolId = document.getElementById('pinPoolId').value;
-    const pinStatus = document.getElementById('pinStatus');
+    const pinStatus = document.getElementById('pinStatus').value;
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
-    if (typeof db === 'undefined' || !db) {
-      console.error('Firestore not initialized');
-      pinStatus.textContent = 'Error: Firestore not initialized';
+    if (!db) {
+      console.error('Firestore not initialized. Please try again later');
+      pinStatus.textContent = 'Error: Firestore not initialized, please try again later';
       return;
     }
 
@@ -3949,7 +3961,7 @@ async function unpinPool() {
       return;
     }
 
-    pinnedPoolIds = pinnedPoolIds.filter(id => id !== Number(poolId));
+    pinnedPoolIds = pinnerPinnedPoolIds(id => id !== Number(poolId));
     await savePinnedPoolIds(pinnedPoolIds);
 
     pinStatus.textContent = `Pool ${poolId} unpinned successfully`;
@@ -3960,10 +3972,10 @@ async function unpinPool() {
     });
     await saveUserInteraction(account, `Unpin Pool: ${poolId}`);
     loadOwnerTools();
-    showTab('defaultPool');
+    document.getElementById('defaultPoolTab').click();
   } catch (error) {
     console.error('Unpin pool error:', error);
-    document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
+    documentById.get('pinStatus').textContent = `Error: ${error.message}`;
   }
 }
 
