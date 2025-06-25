@@ -3834,7 +3834,7 @@ async function saveUserInteraction(wallet, action) {
     await db.collection('userInteractions').add({
       wallet: wallet.toLowerCase(),
       action,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      timestamp: window.firebase.firestore.FieldValue.serverTimestamp()
     });
     console.log(`User interaction saved: ${action}`);
   } catch (error) {
@@ -3935,39 +3935,6 @@ async function unpinPool() {
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
-
-    let pinnedPoolIds = await loadPinnedPoolIds();
-    if (!pinnedPoolIds.includes(Number(poolId))) {
-      pinStatus.textContent = 'Pool not pinned';
-      return;
-    }
-
-    pinnedPoolIds = pinnedPoolIds.filter(id => id !== Number(poolId));
-    await savePinnedPoolIds(pinnedPoolIds);
-
-    pinStatus.textContent = `Pool ${poolId} unpinned successfully`;
-    userInteractions.push({
-      wallet: account,
-      action: `Unpin Pool: ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Unpin Pool: ${poolId}`);
-    loadOwnerTools();
-    showTab('defaultPool');
-  } catch (error) {
-    console.error('Unpin pool error:', error);
-    document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
-  }
-}
-
-// Unpin pool
-async function unpinPool() {
-  try {
-    const poolId = document.getElementById('pinPoolId').value;
-    const pinStatus = document.getElementById('pinStatus');
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
-    }
     if (!db) {
       throw new Error('Firestore not initialized');
     }
@@ -3996,7 +3963,7 @@ async function unpinPool() {
   }
 }
 
-// Download user interactions as PDF (tetap utuh, nggak diubah)
+// Download user interactions as PDF (tetap utuh)
 function downloadUserInteractions() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
