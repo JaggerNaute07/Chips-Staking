@@ -1505,7 +1505,19 @@ const firebaseConfig = {
 };
 // Inisialisasi Firebase App and Firestore
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+let db;
+try {
+  if (typeof firebase !== 'undefined' && firebase.firestore) {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    console.log('Firebase initialized successfully');
+  } else {
+    console.error('Firebase SDK not loaded');
+  }
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+}
+
 
 // Initialize Web3 with RPC fallback
 async function initWeb3() {
@@ -3772,6 +3784,10 @@ async function loadPinnedPoolIds() {
       console.warn('No account connected, returning empty pinned pool IDs');
       return [];
     }
+    if (!db) {
+      console.error('Firestore not initialized, returning empty pinned pool IDs');
+      return [];
+    }
     const docRef = db.collection('users').doc(account.toLowerCase());
     const doc = await docRef.get();
     if (doc.exists) {
@@ -3792,6 +3808,10 @@ async function savePinnedPoolIds(pinnedPoolIds) {
       console.warn('No account connected, cannot save pinned pool IDs');
       return;
     }
+    if (!db) {
+      console.error('Firestore not initialized, cannot save pinned pool IDs');
+      return;
+    }
     const docRef = db.collection('users').doc(account.toLowerCase());
     await docRef.set({ pinnedPoolIds }, { merge: true });
     console.log('Pinned pool IDs saved to Firestore:', pinnedPoolIds);
@@ -3805,6 +3825,10 @@ async function saveUserInteraction(wallet, action) {
   try {
     if (!wallet) {
       console.warn('No wallet address provided, cannot save interaction');
+      return;
+    }
+    if (!db) {
+      console.error('Firestore not initialized, cannot save interaction');
       return;
     }
     await db.collection('userInteractions').add({
@@ -3823,6 +3847,10 @@ async function loadUserInteractions() {
   try {
     if (!account) {
       console.warn('No account connected, returning empty interactions');
+      return [];
+    }
+    if (!db) {
+      console.error('Firestore not initialized, returning empty interactions');
       return [];
     }
     const querySnapshot = await db.collection('userInteractions')
@@ -3852,6 +3880,10 @@ async function initializeAppData() {
       console.warn('No account connected, skipping app data initialization');
       return;
     }
+    if (!db) {
+      console.error('Firestore not initialized, skipping app data initialization');
+      return;
+    }
     userInteractions = await loadUserInteractions();
     console.log('App data initialized with user interactions:', userInteractions.length);
   } catch (error) {
@@ -3866,6 +3898,9 @@ async function pinPool() {
     const pinStatus = document.getElementById('pinStatus');
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
+    }
+    if (!db) {
+      throw new Error('Firestore not initialized');
     }
 
     const pinnedPoolIds = await loadPinnedPoolIds();
@@ -3925,7 +3960,43 @@ async function unpinPool() {
   }
 }
 
-// Download user interactions as PDF
+// Unpin pool
+async function unpinPool() {
+  try {
+    const poolId = document.getElementById('pinPoolId').value;
+    const pinStatus = document.getElementById('pinStatus');
+    if (!poolId || isNaN(Number(poolId))) {
+      throw new Error('Invalid pool ID');
+    }
+    if (!db) {
+      throw new Error('Firestore not initialized');
+    }
+
+    let pinnedPoolIds = await loadPinnedPoolIds();
+    if (!pinnedPoolIds.includes(Number(poolId))) {
+      pinStatus.textContent = 'Pool not pinned';
+      return;
+    }
+
+    pinnedPoolIds = pinnedPoolIds.filter(id => id !== Number(poolId));
+    await savePinnedPoolIds(pinnedPoolIds);
+
+    pinStatus.textContent = `Pool ${poolId} unpinned successfully`;
+    userInteractions.push({
+      wallet: account,
+      action: `Unpin Pool: ${poolId}`,
+      timestamp: Date.now()
+    });
+    await saveUserInteraction(account, `Unpin Pool: ${poolId}`);
+    loadOwnerTools();
+    showTab('defaultPool');
+  } catch (error) {
+    console.error('Unpin pool error:', error);
+    document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
+  }
+}
+
+// Download user interactions as PDF (tetap utuh, nggak diubah)
 function downloadUserInteractions() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
