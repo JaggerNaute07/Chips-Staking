@@ -1486,7 +1486,7 @@ const IERC20_ABI = [
     {"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"type":"function"}
 ];
 
-/// Global variables
+// Global variables
 let web3;
 let contract;
 let account = null;
@@ -1506,12 +1506,22 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID || "YOUR_APP_ID"
 };
 
+// Debug environment variables
+console.log('Firebase Config Values:', {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
+});
+
 async function initFirebase() {
   try {
-    // Pastikan window.firebase dan firestore tersedia
+    // Pastikan Firebase SDK dimuat
     if (!window.firebase || !window.firebase.firestore) {
       let attempts = 0;
-      const maxAttempts = 5;
+      const maxAttempts = 10; // Tambah retry untuk Vercel
       while (attempts < maxAttempts) {
         console.log(`Waiting for Firebase SDK to load... Attempt ${attempts + 1}`);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Delay 1 detik
@@ -1523,22 +1533,39 @@ async function initFirebase() {
       }
     }
 
+    // Validasi firebaseConfig
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
+      throw new Error('Invalid Firebase configuration. Check environment variables in Vercel.');
+    }
+
     // Cek apakah Firebase sudah diinisialisasi
     if (!window.firebase.apps.length) {
       window.firebase.initializeApp(firebaseConfig);
     }
     db = window.firebase.firestore();
     console.log('Firebase initialized successfully');
+    return true;
   } catch (error) {
-    console.error('Firebase initialization failed:', error);
-    db = null; // Pastikan db null kalau gagal
+    console.error('Firebase initialization failed:', error.message);
+    db = null;
+    return false;
   }
 }
 
-// Panggil initFirebase saat DOM siap
-document.addEventListener('DOMContentLoaded', () => {
-  initFirebase().catch(error => console.error('Failed to initialize Firebase:', error));
+// Panggil initFirebase saat DOM siap dan retry kalau gagal
+document.addEventListener('DOMContentLoaded', async () => {
+  let initialized = await initFirebase();
+  if (!initialized) {
+    // Retry sekali setelah delay kalau gagal
+    console.log('Retrying Firebase initialization after 3 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    initialized = await initFirebase();
+    if (!initialized) {
+      console.error('Failed to initialize Firebase after retry.');
+    }
+  }
 });
+
 // Initialize Web3 with RPC fallback
 async function initWeb3() {
   try {
@@ -3920,10 +3947,16 @@ async function pinPool() {
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
+
+    // Tunggu Firebase diinisiasi
     if (!db) {
-      console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
-      pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
-      return;
+      console.log('Firestore not initialized, attempting to initialize...');
+      const initialized = await initFirebase();
+      if (!initialized || !db) {
+        console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
+        pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
+        return;
+      }
     }
 
     const pinnedPoolIds = await loadPinnedPoolIds();
@@ -3958,10 +3991,16 @@ async function unpinPool() {
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
+
+    // Tunggu Firebase diinisiasi
     if (!db) {
-      console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
-      pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
-      return;
+      console.log('Firestore not initialized, attempting to initialize...');
+      const initialized = await initFirebase();
+      if (!initialized || !db) {
+        console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
+        pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
+        return;
+      }
     }
 
     let pinnedPoolIds = await loadPinnedPoolIds();
