@@ -3899,8 +3899,10 @@ async function pinPool() {
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
-    if (!db) {
-      throw new Error('Firestore not initialized');
+    if (typeof db === 'undefined' || !db) {
+      console.error('Firestore not initialized');
+      pinStatus.textContent = 'Error: Firestore not initialized';
+      return;
     }
 
     const pinnedPoolIds = await loadPinnedPoolIds();
@@ -3935,8 +3937,10 @@ async function unpinPool() {
     if (!poolId || isNaN(Number(poolId))) {
       throw new Error('Invalid pool ID');
     }
-    if (!db) {
-      throw new Error('Firestore not initialized');
+    if (typeof db === 'undefined' || !db) {
+      console.error('Firestore not initialized');
+      pinStatus.textContent = 'Error: Firestore not initialized';
+      return;
     }
 
     let pinnedPoolIds = await loadPinnedPoolIds();
