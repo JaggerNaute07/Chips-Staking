@@ -1497,31 +1497,37 @@ let isCreatePoolHidden = false;
 let userInteractions = [];
 let db = null; // Deklarasi eksplisit di global scope
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || "YOUR_API_KEY",
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
-  projectId: process.env.FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-  appId: process.env.FIREBASE_APP_ID || "YOUR_APP_ID"
-};
-
-// Debug environment variables
-console.log('Firebase Config Values:', {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
-});
+// Fungsi untuk mendapatkan firebaseConfig
+function getFirebaseConfig() {
+  const config = {
+    apiKey: process.env.FIREBASE_API_KEY || "YOUR_API_KEY",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
+    projectId: process.env.FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
+    appId: process.env.FIREBASE_APP_ID || "YOUR_APP_ID"
+  };
+  // Debug environment variables
+  console.log('Firebase Config Values:', {
+    apiKey: config.apiKey,
+    authDomain: config.authDomain,
+    projectId: config.projectId,
+    storageBucket: config.storageBucket,
+    messagingSenderId: config.messagingSenderId,
+    appId: config.appId
+  });
+  return config;
+}
 
 async function initFirebase() {
   try {
+    // Ambil config di dalam fungsi untuk hindari TDZ
+    const firebaseConfig = getFirebaseConfig();
+
     // Pastikan Firebase SDK dimuat
     if (!window.firebase || !window.firebase.firestore) {
       let attempts = 0;
-      const maxAttempts = 10; // Tambah retry untuk Vercel
+      const maxAttempts = 15; // Tambah retry untuk Vercel
       while (attempts < maxAttempts) {
         console.log(`Waiting for Firebase SDK to load... Attempt ${attempts + 1}`);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Delay 1 detik
@@ -1535,7 +1541,20 @@ async function initFirebase() {
 
     // Validasi firebaseConfig
     if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
-      throw new Error('Invalid Firebase configuration. Check environment variables in Vercel.');
+      console.warn('Invalid Firebase configuration. Using hardcoded fallback for testing.');
+      // Fallback hardcoded (ganti dengan config asli kamu untuk debug)
+      const fallbackConfig = {
+        apiKey: "your-actual-api-key",
+        authDomain: "your-actual-auth-domain",
+        projectId: "your-actual-project-id",
+        storageBucket: "your-actual-storage-bucket",
+        messagingSenderId: "your-actual-messaging-sender-id",
+        appId: "your-actual-app-id"
+      };
+      if (!fallbackConfig.apiKey || fallbackConfig.apiKey === "your-actual-api-key") {
+        throw new Error('No valid Firebase configuration provided. Check environment variables or hardcoded config.');
+      }
+      Object.assign(firebaseConfig, fallbackConfig);
     }
 
     // Cek apakah Firebase sudah diinisialisasi
@@ -1551,18 +1570,22 @@ async function initFirebase() {
     return false;
   }
 }
-
-// Panggil initFirebase saat DOM siap dan retry kalau gagal
+// Panggil initFirebase saat DOM siap dengan retry
 document.addEventListener('DOMContentLoaded', async () => {
-  let initialized = await initFirebase();
-  if (!initialized) {
-    // Retry sekali setelah delay kalau gagal
-    console.log('Retrying Firebase initialization after 3 seconds...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+  let initialized = false;
+  let attempts = 0;
+  const maxAttempts = 3;
+  while (!initialized && attempts < maxAttempts) {
+    console.log(`Attempting Firebase initialization... Attempt ${attempts + 1}`);
     initialized = await initFirebase();
     if (!initialized) {
-      console.error('Failed to initialize Firebase after retry.');
+      console.log('Firebase initialization failed, retrying after 3 seconds...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
+    attempts++;
+  }
+  if (!initialized) {
+    console.error('Failed to initialize Firebase after all retries.');
   }
 });
 
@@ -3844,7 +3867,7 @@ async function loadPinnedPoolIds() {
     }
     return [];
   } catch (error) {
-    console.error('Error loading pinned pool IDs from Firestore:', error);
+    console.error('Error loading pinned pool IDs from Firestore:', error.message);
     return [];
   }
 }
@@ -3864,7 +3887,7 @@ async function savePinnedPoolIds(pinnedPoolIds) {
     await docRef.set({ pinnedPoolIds }, { merge: true });
     console.log('Pinned pool IDs saved to Firestore:', pinnedPoolIds);
   } catch (error) {
-    console.error('Error saving pinned pool IDs to Firestore:', error);
+    console.error('Error saving pinned pool IDs to Firestore:', error.message);
   }
 }
 
@@ -3978,7 +4001,7 @@ async function pinPool() {
     loadOwnerTools();
     showTab('defaultPool');
   } catch (error) {
-    console.error('Pin pool error:', error);
+    console.error('Pin pool error:', error.message);
     document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
   }
 }
@@ -4022,7 +4045,7 @@ async function unpinPool() {
     loadOwnerTools();
     showTab('defaultPool');
   } catch (error) {
-    console.error('Unpin pool error:', error);
+    console.error('Unpin pool error:', error.message);
     document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
   }
 }
