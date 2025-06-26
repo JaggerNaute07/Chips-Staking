@@ -1,5 +1,4 @@
-// generate-env.js
-const fs = require('fs');
+const fs = require("fs");
 
 const env = {
   FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
@@ -12,5 +11,5 @@ const env = {
 
 const content = `window.env = ${JSON.stringify(env, null, 2)};`;
 
-fs.writeFileSync('public/env.js', content);
-console.log('✅ env.js generated in public/env.js');
+fs.writeFileSync("public/env.js", content);
+console.log("✅ Generated env.js");
