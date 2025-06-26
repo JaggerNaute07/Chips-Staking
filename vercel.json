@@ -1,8 +1,13 @@
 {
+  "version": 2,
+  "public": true,
   "builds": [
-    { "src": "public/index.html", "use": "@vercel/static" }
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
+    }
   ],
-  "hooks": {
-    "build": "node generate-env.js"
-  }
+  "routes": [
+    { "src": "/(.*)", "dest": "/public/$1" }
+  ]
 }
