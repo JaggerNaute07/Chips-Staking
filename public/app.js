@@ -1520,8 +1520,6 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-
-
 // Setelah initialize, baru akses Firestore
 const db = firebase.firestore();
 
@@ -1532,15 +1530,23 @@ async function logInteraction(action) {
     const db = firebase.firestore();
     const timestamp = new Date();
 
-    await db.collection('userInteractions').add({
+    if (!account) {
+      console.warn('Wallet belum terkoneksi saat logInteraction dipanggil!');
+      return;
+    }
+
+    const data = {
       wallet: account,
       action,
       timestamp: timestamp.toISOString()
-    });
+    };
 
-    console.log('Logged interaction to Firestore:', action);
+    console.log('Mencatat interaksi:', data);
+
+    const res = await db.collection('userInteractions').add(data);
+    console.log('Interaksi tersimpan ke Firestore dengan ID:', res.id);
   } catch (err) {
-    console.error('Failed to log interaction:', err);
+    console.error('Gagal menyimpan interaksi:', err);
   }
 }
 
@@ -2535,7 +2541,7 @@ async function createPoolCard(poolId, pool, isPinned = false, tabPrefix = '') {
         ${isOwner || pool.creator.toLowerCase() === account.toLowerCase() ? `<p>Pool ID: ${poolId}</p>` : ''}
         <p>Stake: ${stakeTokenTicker}</p>
         <p>Reward Token: ${rewardDisplay}</p>
-        <p>APR: ${aprValue}%</p>${pendingAprText}
+        <p>APR: ${Number(aprValue).toLocaleString()}%</p>
         <p>Total Staked: ${web3.utils.fromWei(pool.totalStaked || '0', 'ether')} ${stakeTokenTicker}</p>
         <p>Staker: ${pool.stakerCount || 0}</p>
         <p>Lock Period: ${(Number(pool.lockPeriod || 0) / 86400) % 1 === 0 ? Number(pool.lockPeriod / 86400) : (Number(pool.lockPeriod || 0) / 86400).toFixed(1)} days</p>
@@ -3295,7 +3301,7 @@ async function stake(poolId, tabPrefix = '') {
     });
 
     // Simpan ke Firestore untuk persistensi
-    await logInteractionToFirestore(`Stake ${amount} ke Pool ${poolId}`);
+    await logInteraction(`Stake ${amount} ke Pool ${poolId}`);
 
     console.log(`Stake successful for pool ${poolId}:`, amount);
   } catch (error) {
@@ -3412,7 +3418,6 @@ async function claimRewards(poolId) {
     userInteractions.push({ wallet: account, action: `Claim Rewards for Pool ${poolId}`, timestamp: Date.now() });
     loadAllTabs();
     logInteraction(`Claim Reward di Pool ${poolId}`);
-    logInteraction(`Create Pool: Stake ${stakeToken}, Reward ${rewardToken}, APR ${apr}`);
   } catch (error) {
     console.error('Error claiming rewards:', error);
     document.getElementById('walletStatus').textContent = 'Transaction failed';
