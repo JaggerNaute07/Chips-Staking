@@ -3514,16 +3514,14 @@ async function createPool() {
       return;
     }
 
-    // Hitung msg.value: creationFee + initialRewardWei (jika rewardToken adalah native token)
+    // Hitung msg.value
     let msgValue = rewardToken === '0x0000000000000000000000000000000000000000' ? web3.utils.toBN(initialRewardWei) : web3.utils.toBN('0');
     const isAdmin = await contract.methods.hasRole(await contract.methods.DEFAULT_ADMIN_ROLE().call(), account).call();
     if (!isAdmin) {
       msgValue = msgValue.add(web3.utils.toBN(creationFee));
     }
-    console.log('Msg Value:', web3.utils.fromWei(msgValue, 'ether'));
 
     const nonce = await web3.eth.getTransactionCount(account, 'pending');
-    console.log('Nonce:', nonce);
     let gasEstimate;
     try {
       gasEstimate = await contract.methods.createPool(
@@ -3537,14 +3535,12 @@ async function createPool() {
         from: account,
         value: msgValue
       });
-      console.log('Gas Estimate:', gasEstimate);
     } catch (error) {
       console.error('Gas estimation failed:', error);
       gasEstimate = 500000;
     }
 
     const gasLimit = Math.min(Math.max(Math.floor(gasEstimate * 1.2), 500000), 2000000);
-    console.log('Gas Limit:', gasLimit);
 
     document.getElementById('createStatus').textContent = 'Creating pool...';
     const tx = await contract.methods.createPool(
@@ -3566,32 +3562,38 @@ async function createPool() {
     const poolId = poolCount - 1;
     window.newPoolIds = window.newPoolIds || [];
     window.newPoolIds.push(Number(poolId));
-    console.log('Added to window.newPoolIds:', window.newPoolIds);
-    console.log('Created Pool ID:', poolId);
-
     const poolInfo = await contract.methods.getPoolInfo(poolId).call();
-    console.log(`New Pool ${poolId} Info:`, JSON.stringify(poolInfo, null, 2));
 
     document.getElementById('createStatus').textContent = 'Approve transaction success';
-    console.log('Set createStatus to Transaction successful at:', new Date().toISOString());
     logInteraction(`Create Pool ID ${poolId} | Stake ${stakeToken} | Reward ${rewardToken} | APR ${apr}`);
 
-    // Tangani getCreatorPoolIds dengan try-catch untuk mencegah error menghentikan eksekusi
+    // ✅ Bagian fix: fallback jika getCreatorPoolIds gagal
     let creatorPoolIds = [];
     try {
       creatorPoolIds = await contract.methods.getCreatorPoolIds(account, 0, 10).call();
       console.log('Creator Pool IDs:', creatorPoolIds);
     } catch (error) {
-      console.error('Failed to fetch creator pool IDs:', error);
-      document.getElementById('createStatus').textContent = 'Pool created, but failed to fetch creator pool IDs';
+      console.warn('getCreatorPoolIds failed, fallback to manual scan:', error.message);
+      try {
+        const totalPool = await contract.methods.poolCount().call();
+        for (let i = 0; i < totalPool; i++) {
+          const info = await contract.methods.getPoolInfo(i).call();
+          if (info.creator.toLowerCase() === account.toLowerCase()) {
+            creatorPoolIds.push(i);
+          }
+        }
+        console.log('Manual scanned pool IDs:', creatorPoolIds);
+      } catch (scanErr) {
+        console.error('Manual scan failed:', scanErr);
+      }
     }
 
   } catch (error) {
     console.error('Error creating pool:', error);
     document.getElementById('createStatus').textContent = 'Failed to create pool';
-    throw error;
   }
 }
+
 
 // Authorize upgrade
 async function upgradeTo() {
