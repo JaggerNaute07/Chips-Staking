@@ -4093,53 +4093,98 @@ async function downloadUserInteractions() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    // Ambil data interaksi dari Firestore
     const db = firebase.firestore();
     const snapshot = await db.collection('userInteractions').get();
     const firestoreData = snapshot.docs.map(doc => doc.data());
 
     if (firestoreData.length === 0) {
-      alert('Belum ada interaksi tersimpan');
+      alert('No user interactions found.');
       return;
     }
 
-    // Hitung total interaksi per wallet
-    const interactionSummary = {};
-    firestoreData.forEach(interaction => {
-      if (!interactionSummary[interaction.wallet]) {
-        interactionSummary[interaction.wallet] = 0;
+    // Kelompokkan dan hitung per wallet
+    const summary = {};
+
+    firestoreData.forEach(({ wallet, action, timestamp }) => {
+      if (!summary[wallet]) {
+        summary[wallet] = {
+          create: 0,
+          stake: 0,
+          claim: 0,
+          unstake: 0,
+          first: timestamp,
+          last: timestamp
+        };
       }
-      interactionSummary[interaction.wallet]++;
+
+      const data = summary[wallet];
+
+      const lower = action.toLowerCase();
+      if (lower.includes('create pool')) data.create++;
+      if (lower.includes('stake')) data.stake++;
+      if (lower.includes('claim')) data.claim++;
+      if (lower.includes('unstake')) data.unstake++;
+
+      if (timestamp < data.first) data.first = timestamp;
+      if (timestamp > data.last) data.last = timestamp;
     });
 
-    // Buat data untuk tabel
-    const tableData = Object.entries(interactionSummary).map(([wallet, count]) => [wallet, count]);
+    // Format data untuk tabel
+    const tableData = Object.entries(summary).map(([wallet, stats]) => {
+      const format = (dateStr) => {
+        const date = new Date(dateStr);
+        return `${date.getDate().toString().padStart(2, '0')}/${
+          (date.getMonth() + 1).toString().padStart(2, '0')}/${
+          date.getFullYear()}`;
+      };
 
-    // Definisikan header
-    const headers = ['Wallet', 'Total Interaksi'];
+      return [
+        wallet,
+        stats.create,
+        stats.stake,
+        stats.claim,
+        stats.unstake,
+        format(stats.first),
+        format(stats.last)
+      ];
+    });
 
-    // Konfigurasi AutoTable
+    const headers = [
+      'Wallet',
+      'Create Pool',
+      'Stake',
+      'Claim Reward',
+      'Unstake',
+      'First Interaction',
+      'Last Interaction'
+    ];
+
+    // Tabel AutoTable
     doc.autoTable({
       head: [headers],
       body: tableData,
-      styles: { fontSize: 10 },
+      styles: { fontSize: 8 },
       headStyles: { fillColor: [41, 128, 185] },
       columnStyles: {
-        0: { cellWidth: 120 }, // Wallet
-        1: { cellWidth: 60 }   // Jumlah
+        0: { cellWidth: 50 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 20 },
+        5: { cellWidth: 30 },
+        6: { cellWidth: 30 }
       },
       margin: { top: 20 },
       didDrawPage: (data) => {
         doc.setFontSize(14);
-        doc.text('User Interactions Report', data.settings.margin.left, 15);
+        doc.text('User Interaction Report', data.settings.margin.left, 15);
       }
     });
 
-    // Simpan PDF
     doc.save(`user_interactions_${new Date().toISOString().split('T')[0]}.pdf`);
   } catch (error) {
     console.error('Error generating PDF:', error);
-    alert('Gagal membuat PDF: ' + error.message);
+    alert('Failed to generate PDF: ' + error.message);
   }
 }
 
