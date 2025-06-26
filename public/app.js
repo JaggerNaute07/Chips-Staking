@@ -1,5 +1,5 @@
 // app.js
-const CONTRACT_ADDRESS = "0xd65281b7a2ba17407CD3FBbcD5dcD866D908EF16";
+const CONTRACT_ADDRESS = "0xb712DC3E8cC3804c8aef25549f748b28aC39C59e";
 const FEE_RECEIVER = "0x0079352b27fDce7DDB744644dEFBcdB99cb5A9b9";
 const RPC_URLS = ["http://20.63.3.101:8545", "https://holistic-purple-period.glitch.me"];
 const CHAIN_ID = "0x2ca"; // 714 in hex
@@ -8,6 +8,7 @@ const CHIPS_ADDRESS = "0x0000000000000000000000000000000000000000";
 const DECIMALS = 18;
 const MIN_APR = 360;
 const MAX_APR = 10000;
+const ADMIN_WALLET = "0x0079352b27fDce7DDB744644dEFBcdB99cb5A9b9".toLowerCase(); 
 
 // Placeholder for ABIs (to be filled by you)
 const contractABI = [
@@ -554,6 +555,19 @@ const contractABI = [
   {
     "inputs": [],
     "name": "ADMIN_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "CREATOR_ROLE",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -1495,100 +1509,48 @@ let isCreator = false;
 let isNewPoolsHidden = false;
 let isCreatePoolHidden = false;
 let userInteractions = [];
-let db = null; // Deklarasi eksplisit di global scope
 
-// Fungsi untuk mendapatkan firebaseConfig
-function getFirebaseConfig() {
-  const config = {
-    apiKey: process.env.FIREBASE_API_KEY || "YOUR_API_KEY",
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
-    projectId: process.env.FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-    appId: process.env.FIREBASE_APP_ID || "YOUR_APP_ID"
-  };
-  // Debug environment variables
-  console.log('Firebase Config Values:', {
-    apiKey: config.apiKey,
-    authDomain: config.authDomain,
-    projectId: config.projectId,
-    storageBucket: config.storageBucket,
-    messagingSenderId: config.messagingSenderId,
-    appId: config.appId
-  });
-  return config;
-}
+// Firebase setup (gunakan environment variable dari Vercel)
+const firebaseConfig = {
+  apiKey: window.env.FIREBASE_API_KEY,
+  authDomain: window.env.FIREBASE_AUTH_DOMAIN,
+  projectId: window.env.FIREBASE_PROJECT_ID,
+  storageBucket: window.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: window.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: window.env.FIREBASE_APP_ID
+};
 
-async function initFirebase() {
+firebase.initializeApp(firebaseConfig);
+
+// Fungsi log interaksi ke Firestore
+async function logInteraction(action) {
   try {
-    // Ambil config di dalam fungsi untuk hindari TDZ
-    const firebaseConfig = getFirebaseConfig();
+    const db = firebase.firestore();
+    const timestamp = new Date();
 
-    // Pastikan Firebase SDK dimuat
-    if (!window.firebase || !window.firebase.firestore) {
-      let attempts = 0;
-      const maxAttempts = 15; // Tambah retry untuk Vercel
-      while (attempts < maxAttempts) {
-        console.log(`Waiting for Firebase SDK to load... Attempt ${attempts + 1}`);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Delay 1 detik
-        attempts++;
-        if (window.firebase && window.firebase.firestore) break;
-      }
-      if (!window.firebase || !window.firebase.firestore) {
-        throw new Error('Firebase SDK not loaded. Ensure Firebase scripts are included in index.html');
-      }
-    }
+    await db.collection('userInteractions').add({
+      wallet: account,
+      action,
+      timestamp: timestamp.toISOString()
+    });
 
-    // Validasi firebaseConfig
-    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
-      console.warn('Invalid Firebase configuration. Using hardcoded fallback for testing.');
-      // Fallback hardcoded (ganti dengan config asli kamu untuk debug)
-      const fallbackConfig = {
-        apiKey: "your-actual-api-key",
-        authDomain: "your-actual-auth-domain",
-        projectId: "your-actual-project-id",
-        storageBucket: "your-actual-storage-bucket",
-        messagingSenderId: "your-actual-messaging-sender-id",
-        appId: "your-actual-app-id"
-      };
-      if (!fallbackConfig.apiKey || fallbackConfig.apiKey === "your-actual-api-key") {
-        throw new Error('No valid Firebase configuration provided. Check environment variables or hardcoded config.');
-      }
-      Object.assign(firebaseConfig, fallbackConfig);
-    }
-
-    // Cek apakah Firebase sudah diinisialisasi
-    if (!window.firebase.apps.length) {
-      window.firebase.initializeApp(firebaseConfig);
-    }
-    db = window.firebase.firestore();
-    console.log('Firebase initialized successfully');
-    return true;
-  } catch (error) {
-    console.error('Firebase initialization failed:', error.message);
-    db = null;
-    return false;
+    console.log('Logged interaction to Firestore:', action);
+  } catch (err) {
+    console.error('Failed to log interaction:', err);
   }
 }
-// Panggil initFirebase saat DOM siap dengan retry
-document.addEventListener('DOMContentLoaded', async () => {
-  let initialized = false;
-  let attempts = 0;
-  const maxAttempts = 3;
-  while (!initialized && attempts < maxAttempts) {
-    console.log(`Attempting Firebase initialization... Attempt ${attempts + 1}`);
-    initialized = await initFirebase();
-    if (!initialized) {
-      console.log('Firebase initialization failed, retrying after 3 seconds...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    }
-    attempts++;
-  }
-  if (!initialized) {
-    console.error('Failed to initialize Firebase after all retries.');
-  }
-});
 
+
+// Load from localStorage on startup
+const storedInteractions = localStorage.getItem('userInteractions');
+if (storedInteractions) {
+  try {
+    userInteractions = JSON.parse(storedInteractions);
+  } catch (e) {
+    console.warn('Failed to parse stored interactions:', e);
+    userInteractions = [];
+  }
+}
 // Initialize Web3 with RPC fallback
 async function initWeb3() {
   try {
@@ -1887,7 +1849,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 window.addEventListener('poolUpdated', async (event) => {
-
   const { poolId } = event.detail;
   if (typeof loadPool === 'function') {
     await loadPool([poolId]);
@@ -1932,6 +1893,11 @@ function updateTabsVisibility() {
     const createPoolTab = document.getElementById('createPool');
     const defaultPoolTab = document.getElementById('defaultPool');
     const ownerStatus = document.getElementById('ownerStatus');
+    const pinPoolSection = document.getElementById('pinPoolSection');
+    if (pinPoolSection) {
+     pinPoolSection.style.display = isOwner ? 'block' : 'none';
+    }
+
 
     if (creatorToolsTabButton) {
       creatorToolsTabButton.style.display = isCreator ? 'inline-block' : 'none';
@@ -2086,21 +2052,12 @@ async function updateUI() {
     let totalStakedUSDT = BigInt(0);
     let totalStakedCHIPS = BigInt(0);
     let totalStakers = 0;
-
     let poolCount = 0;
+
     try {
       poolCount = Number(await contract.methods.poolCount().call());
-      console.log('Pool count:', poolCount);
     } catch (error) {
       console.error('Error fetching pool count:', error.message);
-      poolBalanceElement.innerText = '0';
-      poolBalanceChipsElement.innerText = '0';
-      totalStakerElement.innerText = '0';
-      return;
-    }
-
-    if (poolCount === 0) {
-      console.warn('No pools found in contract!');
       poolBalanceElement.innerText = '0';
       poolBalanceChipsElement.innerText = '0';
       totalStakerElement.innerText = '0';
@@ -2110,62 +2067,43 @@ async function updateUI() {
     for (let i = 0; i < poolCount; i++) {
       try {
         const pool = await contract.methods.getPoolInfo(i).call();
-        console.log(`Raw pool ${i} data:`, JSON.stringify(pool, null, 2));
+        if (!pool.active) continue;
 
-        if (!pool.active) {
-          console.log(`Pool ${i} is inactive, skipping...`);
-          continue;
-        }
-
-        const stakeToken = pool.stakeToken
-          ? pool.stakeToken.toLowerCase().trim()
-          : '0x0000000000000000000000000000000000000000';
-        console.log(`Pool ${i} stakeToken:`, stakeToken);
-
-        const totalStaked = pool.totalStaked
-          ? BigInt(pool.totalStaked.toString() || '0')
-          : BigInt(0);
-        const stakerCount = pool.stakerCount
-          ? Number(pool.stakerCount.toString() || '0')
-          : 0;
-
-        console.log(`Pool ${i} info:`, {
-          stakeToken,
-          totalStaked: totalStaked.toString(),
-          stakerCount,
-          active: pool.active
-        });
+        const stakeToken = pool.stakeToken?.toLowerCase().trim() || '';
+        const totalStaked = BigInt(pool.totalStaked?.toString() || '0');
+        const stakerCount = Number(pool.stakerCount?.toString() || '0');
 
         if (stakeToken === USDT_ADDRESS.toLowerCase().trim()) {
           totalStakedUSDT += totalStaked;
-          console.log(`Added ${web3.utils.fromWei(totalStaked.toString(), 'ether')} USDT to total`);
         } else if (stakeToken === CHIPS_ADDRESS.toLowerCase().trim()) {
           totalStakedCHIPS += totalStaked;
-          console.log(`Added ${web3.utils.fromWei(totalStaked.toString(), 'ether')} CHIPS to total`);
-        } else {
-          console.warn(`Unknown stakeToken in pool ${i}:`, stakeToken);
-          console.log(`Expected USDT_ADDRESS: ${USDT_ADDRESS.toLowerCase().trim()}, CHIPS_ADDRESS: ${CHIPS_ADDRESS.toLowerCase().trim()}`);
         }
 
         totalStakers += stakerCount;
-      } catch (poolError) {
-        console.error(`Error fetching pool ${i}:`, poolError.message);
-        continue;
+      } catch (e) {
+        console.error(`Error fetching pool ${i}:`, e.message);
       }
     }
 
-    const usdtBalance = Number(web3.utils.fromWei(totalStakedUSDT.toString(), 'ether')).toFixed(2);
-    const chipsBalance = Number(web3.utils.fromWei(totalStakedCHIPS.toString(), 'ether')).toFixed(2);
-
-    poolBalanceElement.innerText = usdtBalance;
-    poolBalanceChipsElement.innerText = chipsBalance;
+    poolBalanceElement.innerText = Number(web3.utils.fromWei(totalStakedUSDT.toString(), 'ether')).toFixed(2);
+    poolBalanceChipsElement.innerText = Number(web3.utils.fromWei(totalStakedCHIPS.toString(), 'ether')).toFixed(2);
     totalStakerElement.innerText = totalStakers.toString();
 
-    console.log('UI updated:', {
-      totalStakedUSDT: usdtBalance,
-      totalStakedCHIPS: chipsBalance,
-      totalStakers
-    });
+    // 🔥 Tambahan: cek role dan update tab visibilitas
+    try {
+      const defaultAdminRole = await contract.methods.DEFAULT_ADMIN_ROLE().call();
+      isOwner = await contract.methods.hasRole(defaultAdminRole, account).call();
+
+      const creatorRole = await contract.methods.CREATOR_ROLE().call();
+      isCreator = await contract.methods.hasRole(creatorRole, account).call();
+
+      console.log('Role check — isOwner:', isOwner, 'isCreator:', isCreator);
+
+      updateTabsVisibility(); // pastikan tab newPools dan creatorTools muncul
+    } catch (roleError) {
+      console.warn('Gagal cek role:', roleError.message);
+    }
+
   } catch (error) {
     console.error('Update UI error:', error.message);
     const poolBalanceElement = document.getElementById('poolBalance');
@@ -2176,6 +2114,7 @@ async function updateUI() {
     if (totalStakerElement) totalStakerElement.innerText = '0';
   }
 }
+
 
 // Load default pool
 async function loadDefaultPool() {
@@ -2193,8 +2132,10 @@ async function loadDefaultPool() {
     }
 
     // Ambil pinned pool IDs dari Firestore
-    const pinnedPoolIds = await loadPinnedPoolIds();
-    console.log('Pinned Pool IDs:', pinnedPoolIds);
+    const db = firebase.firestore();
+    const pinnedPoolDoc = await db.collection('pinnedPools').doc(ADMIN_WALLET).get();
+    const pinnedPoolIds = pinnedPoolDoc.exists ? pinnedPoolDoc.data().poolIds || [] : [];
+    console.log('Pinned Pool IDs from Firestore:', pinnedPoolIds);
 
     if (pinnedPoolIds.length === 0) {
       defaultPoolCard.innerHTML = '<p>No pools available</p>';
@@ -2287,7 +2228,7 @@ async function loadNewPools() {
     console.log('Pool IDs:', poolIds);
 
     // Filter out pinned pools
-    const pinnedPoolIds = await loadPinnedPoolIds();
+    const pinnedPoolIds = JSON.parse(localStorage.getItem('pinnedPoolIds') || '[]');
     poolIds = poolIds.filter(id => !pinnedPoolIds.includes(Number(id)));
     console.log('Filtered New Pool IDs (excluding pinned):', poolIds);
 
@@ -2986,6 +2927,7 @@ async function loadCreatorTools() {
     console.log('isOwner:', isOwner, 'isCreator:', isCreator);
 
     let poolIds = [];
+
     try {
       const poolCount = Number(await contract.methods.poolCount().call());
       console.log('Pool count:', poolCount);
@@ -2996,7 +2938,7 @@ async function loadCreatorTools() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         try {
           console.log(`Calling getCreatorPoolIds for account: ${account}`);
-          poolIds = await contract.methods.getCreatorPoolIds(account, 0, 100).call();
+          poolIds = await contract.methods.getCreatorPoolIds(account, 0, 100).call({ from: account });
         } catch (error) {
           console.warn('getCreatorPoolIds failed:', error.message);
           console.log('Falling back to manual check');
@@ -3018,13 +2960,11 @@ async function loadCreatorTools() {
       return;
     }
 
-    // Jika ada pool yang dibuat oleh akun, tampilkan UI meskipun bukan owner/creator
     if (poolIds.length === 0) {
       creatorToolContent.innerHTML = '<p>No pools created</p>';
       return;
     }
 
-    // Filter pool aktif yang dibuat oleh creator
     const creatorPoolIds = [];
     for (let id of poolIds) {
       try {
@@ -3037,7 +2977,6 @@ async function loadCreatorTools() {
       }
     }
 
-    // Jika tidak ada pool aktif, tampilkan pesan
     if (creatorPoolIds.length === 0) {
       creatorToolContent.innerHTML = '<p>No active pools created</p>';
       return;
@@ -3112,15 +3051,16 @@ async function loadCreatorTools() {
       </div>
     `;
 
-    // Inisialisasi dengan pemeriksaan elemen DOM
+    // Inisialisasi DOM untuk fund
     if (document.getElementById('fundPoolId') && document.getElementById('fundPoolBalance') && document.getElementById('rewardToken')) {
       await updateRewardTokenField('fund');
     } else {
       console.warn('Fund pool elements not found, skipping updateRewardTokenField for fund');
     }
+
+    // Inisialisasi DOM untuk withdraw
     if (document.getElementById('creatorWithdrawPoolId') && document.getElementById('creatorWithdrawPoolBalance') && document.getElementById('creatorWithdrawToken')) {
       await updateRewardTokenField('withdraw');
-      // Aktifkan tombol Withdraw saat pool dipilih
       const withdrawButton = document.getElementById('creatorWithdrawButton');
       const withdrawPoolId = document.getElementById('creatorWithdrawPoolId');
       if (withdrawButton && withdrawPoolId) {
@@ -3137,6 +3077,7 @@ async function loadCreatorTools() {
     }
   } catch (error) {
     console.error('Load creator tools error:', error);
+    const creatorToolContent = document.getElementById('creatorToolContent');
     if (creatorToolContent) {
       creatorToolContent.innerHTML = '<p>Please try again</p>';
     }
@@ -3234,39 +3175,25 @@ async function getPoolOptions() {
 // Get pool options for creator
 async function getPoolOptionsForCreator() {
   try {
-    if (!contract || !account) {
-      console.error('Contract or account not initialized');
-      return '<option value="">No pools</option>';
-    }
+    if (!contract || !account) return '<option value="">No pools</option>';
     let poolIds = [];
     try {
-      console.log(`Fetching creator pool IDs for account: ${account}`);
-      poolIds = await contract.methods.getCreatorPoolIds(account, 0, 100).call();
-      console.log(`Creator pool IDs: ${poolIds}`);
-    } catch (error) {
-      console.warn('getCreatorPoolIds failed, falling back to manual check:', error.message);
-      const poolCount = Number(await contract.methods.poolCount().call());
+      const poolCount = await contract.methods.poolCount().call();
       for (let i = 0; i < poolCount; i++) {
-        try {
-          const pool = await contract.methods.getPoolInfo(i).call();
-          if (pool.creator.toLowerCase() === account.toLowerCase()) {
-            poolIds.push(i);
-          }
-        } catch (poolError) {
-          console.error(`Error fetching pool ${i}:`, poolError.message);
+        const pool = await contract.methods.getPoolInfo(i).call();
+        if (pool.creator.toLowerCase() === account.toLowerCase()) {
+          poolIds.push(i);
         }
       }
+    } catch (error) {
+      console.warn('Error fetching creator pools:', error.message);
+      return '<option value="">No pools available</option>';
     }
     let options = '<option value="">Select Pool</option>';
     for (let poolId of poolIds) {
-      try {
-        const pool = await contract.methods.getPoolInfo(poolId).call();
-        const ticker = pool.stakeToken.toLowerCase() === CHIPS_ADDRESS.toLowerCase() ? 'CHIPS' : await getTokenName(pool.stakeToken);
-        options += `<option value="${poolId}">${ticker} (Pool ${poolId})</option>`;
-      } catch (poolError) {
-        console.error(`Error fetching pool ${poolId}:`, poolError.message);
-        options += `<option value="${poolId}" disabled>Pool ${poolId} (Error)</option>`;
-      }
+      const pool = await contract.methods.getPoolInfo(poolId).call();
+      const ticker = pool.stakeToken.toLowerCase() === CHIPS_ADDRESS.toLowerCase() ? 'CHIPS' : await getTokenName(pool.stakeToken);
+      options += `<option value="${poolId}">${ticker} (Pool ${poolId})</option>`;
     }
     return options;
   } catch (error) {
@@ -3275,390 +3202,398 @@ async function getPoolOptionsForCreator() {
   }
 }
 
-// Create new pool
-async function createPool() {
+// Get reward token options for dropdown
+async function getRewardTokenOptions(poolId) {
   try {
-    const stakeToken = document.getElementById('stakeToken').value;
-    let rewardToken = document.getElementById('rewardToken').value;
-    const apr = document.getElementById('apr').value;
-    const initialReward = document.getElementById('initialReward').value;
-    const lockPeriod = document.getElementById('lockPeriod').value;
-    const maxRewardPerUser = document.getElementById('maxRewardPerUser').value;
-    const createStatus = document.getElementById('createStatus');
-
-    if (!web3.utils.isAddress(stakeToken) || !web3.utils.isAddress(rewardToken)) {
-      throw new Error('Invalid token address');
+    if (!contract) throw new Error('Contract not initialized');
+    const pool = await contract.methods.getPoolInfo(poolId).call();
+    console.log(`Reward tokens for pool ${poolId}:`, pool.rewardTokens);
+    let options = '<option value="">Select Reward Token</option>';
+    for (let token of pool.rewardTokens) {
+      const tokenName = token.toLowerCase() === '0x0000000000000000000000000000000000000000' ? 'CHIPS' : await getTokenName(token);
+      options += `<option value="${token}">${tokenName}</option>`;
     }
-    if (!apr || apr < 360 || apr > 10000) {
-      throw new Error('APR must be between 360 and 10000');
-    }
-    if (!initialReward || initialReward <= 0) {
-      throw new Error('Initial reward must be greater than 0');
-    }
-    if (!lockPeriod || lockPeriod < 0) {
-      throw new Error('Lock period cannot be negative');
-    }
-    if (!maxRewardPerUser || maxRewardPerUser <= 0) {
-      throw new Error('Max reward per user must be greater than 0');
-    }
-
-    const creationFee = await contract.methods.creationFee().call();
-    let value = creationFee;
-
-    if (rewardToken.toLowerCase() === '0x0000000000000000000000000000000000000000') {
-      value = web3.utils.toBN(creationFee).add(web3.utils.toBN(web3.utils.toWei(initialReward.toString(), 'ether')));
-    } else {
-      const tokenContract = new web3.eth.Contract(IERC20_ABI, rewardToken);
-      const allowance = await tokenContract.methods.allowance(account, contract.options.address).call();
-      if (web3.utils.toBN(allowance).lt(web3.utils.toBN(web3.utils.toWei(initialReward.toString(), 'ether')))) {
-        await tokenContract.methods.approve(contract.options.address, web3.utils.toWei(initialReward.toString(), 'ether')).send({ from: account });
-      }
-    }
-
-    const lockPeriodInSeconds = lockPeriod * 86400;
-    const initialRewardInWei = web3.utils.toWei(initialReward.toString(), 'ether');
-    const maxRewardPerUserInWei = web3.utils.toWei(maxRewardPerUser.toString(), 'ether');
-
-    console.log('Creating pool with params:', {
-      stakeToken,
-      rewardToken,
-      apr,
-      initialRewardInWei,
-      lockPeriodInSeconds,
-      maxRewardPerUserInWei,
-      value: value.toString()
-    });
-
-    const receipt = await contract.methods.createPool(
-      stakeToken,
-      [rewardToken],
-      apr,
-      [initialRewardInWei],
-      lockPeriodInSeconds,
-      maxRewardPerUserInWei
-    ).send({ from: account, value });
-
-    console.log('Pool creation receipt:', receipt);
-    const poolId = receipt.events.PoolCreated.returnValues.poolId;
-
-    createStatus.textContent = `Pool ${poolId} created successfully`;
-    userInteractions.push({
-      wallet: account,
-      action: `Create Pool: ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Create Pool: ${poolId}`);
-    loadCreatePoolForm();
+    return options;
   } catch (error) {
-    console.error('Create pool error:', error);
-    document.getElementById('createStatus').textContent = `Error: ${error.message}`;
-  }
-}
-
-// Fund reward
-async function fundReward() {
-  try {
-    const poolId = document.getElementById('fundPoolId').value;
-    const amount = document.getElementById('fundAmount').value;
-    let rewardToken = document.getElementById('rewardToken').value;
-    const fundStatus = document.getElementById('fundStatus');
-
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
-    }
-    if (!amount || amount <= 0) {
-      throw new Error('Amount must be greater than 0');
-    }
-    if (!web3.utils.isAddress(rewardToken)) {
-      throw new Error('Invalid reward token address');
-    }
-
-    let value = '0';
-    if (rewardToken.toLowerCase() === '0x0000000000000000000000000000000000000000') {
-      value = web3.utils.toWei(amount.toString(), 'ether');
-    } else {
-      const tokenContract = new web3.eth.Contract(IERC20_ABI, rewardToken);
-      const allowance = await tokenContract.methods.allowance(account, contract.options.address).call();
-      if (web3.utils.toBN(allowance).lt(web3.utils.toBN(web3.utils.toWei(amount.toString(), 'ether')))) {
-        await tokenContract.methods.approve(contract.options.address, web3.utils.toWei(amount.toString(), 'ether')).send({ from: account });
-      }
-    }
-
-    console.log('Funding reward with params:', { poolId, rewardToken, amount: web3.utils.toWei(amount.toString(), 'ether'), value });
-
-    await contract.methods.fundReward(
-      poolId,
-      rewardToken,
-      web3.utils.toWei(amount.toString(), 'ether')
-    ).send({ from: account, value });
-
-    fundStatus.textContent = 'Reward funded successfully';
-    userInteractions.push({
-      wallet: account,
-      action: `Fund Reward: ${amount} to Pool ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Fund Reward: ${amount} to Pool ${poolId}`);
-    await updateRewardTokenField('fund', isOwner);
-  } catch (error) {
-    console.error('Fund reward error:', error);
-    fundStatus.textContent = `Error: ${error.message}`;
-  }
-}
-
-// Withdraw from pool
-async function withdrawFromPool(caller) {
-  try {
-    const poolIdElement = document.getElementById(caller === 'owner' ? 'withdrawPoolId' : 'creatorWithdrawPoolId');
-    const amountElement = document.getElementById(caller === 'owner' ? 'withdrawPoolAmount' : 'creatorWithdrawAmount');
-    const tokenElement = document.getElementById(caller === 'owner' ? 'withdrawToken' : 'creatorWithdrawToken');
-    const poolId = poolIdElement.value;
-    const amount = amountElement.value;
-    const token = tokenElement.value;
-
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
-    }
-    if (!amount || amount <= 0) {
-      throw new Error('Amount must be greater than 0');
-    }
-    if (!web3.utils.isAddress(token)) {
-      throw new Error('Invalid token address');
-    }
-
-    const amountInWei = web3.utils.toWei(amount.toString(), 'ether');
-    console.log('Withdrawing from pool with params:', { poolId, token, amount: amountInWei });
-
-    await contract.methods.withdrawReward(poolId, token, amountInWei).send({ from: account });
-
-    const statusElement = caller === 'owner' ? document.getElementById('withdrawStatus') : document.getElementById('creatorWithdrawStatus');
-    if (statusElement) {
-      statusElement.textContent = 'Withdrawal successful';
-    }
-    userInteractions.push({
-      wallet: account,
-      action: `Withdraw: ${amount} from Pool ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Withdraw: ${amount} from Pool ${poolId}`);
-    await updateRewardTokenField(caller === 'owner' ? 'withdraw' : 'withdraw', caller === 'owner');
-  } catch (error) {
-    console.error('Withdraw from pool error:', error);
-    const statusElement = caller === 'owner' ? document.getElementById('withdrawStatus') : document.getElementById('creatorWithdrawStatus');
-    if (statusElement) {
-      statusElement.textContent = `Error: ${error.message}`;
-    }
-  }
-}
-
-// Update APR
-async function updateApr(caller) {
-  try {
-    const poolId = document.getElementById(caller === 'owner' ? 'aprPoolId' : 'creatorUpdatePoolId').value;
-    const newApr = document.getElementById(caller === 'owner' ? 'newApr' : 'creatorNewApr').value;
-
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
-    }
-    if (!newApr || newApr < 360 || newApr > 10000) {
-      throw new Error('APR must be between 360 and 10000');
-    }
-
-    console.log('Updating APR with params:', { poolId, newApr });
-
-    await contract.methods.updateApr(poolId, newApr).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Update APR: ${newApr}% for Pool ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Update APR: ${newApr}% for Pool ${poolId}`);
-    loadCreatorTools();
-  } catch (error) {
-    console.error('Update APR error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
-  }
-}
-
-// Update pool parameters
-async function updatePoolParameters() {
-  try {
-    const poolId = document.getElementById(isOwner ? 'paramPoolId' : 'creatorParamPoolId').value;
-    const lockPeriod = document.getElementById(isOwner ? 'newLockPeriod' : 'creatorNewLockPeriod').value;
-    const maxReward = document.getElementById(isOwner ? 'newMaxReward' : 'creatorNewMaxReward').value;
-
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
-    }
-    if (!lockPeriod || lockPeriod < 0) {
-      throw new Error('Lock period cannot be negative');
-    }
-    if (!maxReward || maxReward <= 0) {
-      throw new Error('Max reward must be greater than 0');
-    }
-
-    const lockPeriodInSeconds = lockPeriod * 86400;
-    const maxRewardInWei = web3.utils.toWei(maxReward.toString(), 'ether');
-
-    console.log('Updating pool parameters with:', { poolId, lockPeriodInSeconds, maxRewardInWei });
-
-    await contract.methods.updatePoolParameters(poolId, lockPeriodInSeconds, maxRewardInWei).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Update Parameters: Pool ${poolId}, Lock ${lockPeriod} days, Max Reward ${maxReward}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Update Parameters: Pool ${poolId}, Lock ${lockPeriod} days, Max Reward ${maxReward}`);
-    loadCreatorTools();
-  } catch (error) {
-    console.error('Update pool parameters error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
-  }
-}
-
-// Activate pool
-async function activatePool(caller) {
-  try {
-    const poolId = document.getElementById(caller === 'owner' ? 'poolIdActivate' : 'creatorManagePoolId').value;
-
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
-    }
-
-    console.log('Activating pool:', poolId);
-
-    await contract.methods.activatePool(poolId).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Activate Pool: ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Activate Pool: ${poolId}`);
-    if (caller === 'owner') {
-      loadOwnerTools();
-    } else {
-      loadCreatorTools();
-    }
-  } catch (error) {
-    console.error('Activate pool error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
-  }
-}
-
-// Deactivate pool
-async function deactivatePool(caller) {
-  try {
-    const poolId = document.getElementById(caller === 'owner' ? 'poolIdDeactivate' : 'creatorManagePoolId').value;
-
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
-    }
-
-    console.log('Deactivating pool:', poolId);
-
-    await contract.methods.deactivatePool(poolId).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Deactivate Pool: ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Deactivate Pool: ${poolId}`);
-    if (caller === 'owner') {
-      loadOwnerTools();
-    } else {
-      loadCreatorTools();
-    }
-  } catch (error) {
-    console.error('Deactivate pool error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error('Error fetching reward token options:', error.message);
+    return '<option value="">No tokens available</option>';
   }
 }
 
 // Stake
 async function stake(poolId, tabPrefix = '') {
   try {
-    const amount = document.getElementById(`${tabPrefix}stakeAmount${poolId}`).value;
-    if (!amount || amount <= 0) {
-      throw new Error('Amount must be greater than 0');
+    const stakeInput = document.getElementById(`${tabPrefix}stakeAmount${poolId}`);
+    if (!stakeInput) {
+      document.getElementById('walletStatus').innerText = 'Stake input not found';
+      console.error(`Stake input element not found for pool ${poolId} with prefix ${tabPrefix}`);
+      return;
     }
 
+    const amount = stakeInput.value.trim();
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      document.getElementById('walletStatus').innerText = 'Please enter a valid stake amount';
+      console.log(`Invalid stake amount for pool ${poolId}:`, amount);
+      return;
+    }
+
+    const amountInWei = web3.utils.toWei(amount, 'ether');
     const pool = await contract.methods.getPoolInfo(poolId).call();
-    const stakeToken = pool.stakeToken.toLowerCase();
-    const amountInWei = web3.utils.toWei(amount.toString(), 'ether');
-
-    console.log('Staking with params:', { poolId, stakeToken, amount: amountInWei });
-
-    if (stakeToken === '0x0000000000000000000000000000000000000000') {
-      await contract.methods.stake(poolId, amountInWei).send({ from: account, value: amountInWei });
-    } else {
-      const tokenContract = new web3.eth.Contract(IERC20_ABI, stakeToken);
-      const allowance = await tokenContract.methods.allowance(account, contract.options.address).call();
-      if (web3.utils.toBN(allowance).lt(web3.utils.toBN(amountInWei))) {
-        await tokenContract.methods.approve(contract.options.address, amountInWei).send({ from: account });
-      }
-      await contract.methods.stake(poolId, amountInWei).send({ from: account });
+    if (!pool.active) {
+      document.getElementById('walletStatus').innerText = 'Pool is not active';
+      console.log(`Pool ${poolId} is inactive`);
+      return;
     }
 
+    let txOptions = { from: account, gas: 200000, gasPrice: web3.utils.toWei('12', 'gwei') };
+    if (pool.stakeToken === '0x0000000000000000000000000000000000000000') {
+      const balance = await web3.eth.getBalance(account);
+      if (Number(balance) < Number(amountInWei)) {
+        document.getElementById('walletStatus').innerText = 'Insufficient balance for staking';
+        console.log(`Insufficient balance for pool ${poolId}:`, web3.utils.fromWei(balance, 'ether'));
+        return;
+      }
+      txOptions.value = amountInWei;
+    } else {
+      const tokenContract = new web3.eth.Contract(IERC20_ABI, pool.stakeToken);
+      const balance = await tokenContract.methods.balanceOf(account).call();
+      if (Number(balance) < Number(amountInWei)) {
+        document.getElementById('walletStatus').innerText = 'Insufficient token balance for staking';
+        console.log(`Insufficient token balance for pool ${poolId}:`, web3.utils.fromWei(balance, 'ether'));
+        return;
+      }
+
+      const allowance = await tokenContract.methods.allowance(account, contract.options.address).call();
+      if (Number(allowance) < Number(amountInWei)) {
+        document.getElementById('walletStatus').innerText = 'Approving token for staking...';
+        try {
+          await tokenContract.methods
+            .approve(contract.options.address, amountInWei)
+            .send({ from: account, gas: 100000, gasPrice: web3.utils.toWei('12', 'gwei') });
+          document.getElementById('walletStatus').innerText = 'Approve transaction success';
+        } catch (approveError) {
+          console.error('Error approving token:', approveError);
+          document.getElementById('walletStatus').innerText = 'Transaction failed';
+          return;
+        }
+      }
+    }
+
+    // Kirim transaksi stake
+    await contract.methods.stake(poolId, amountInWei).send(txOptions);
+    document.getElementById('walletStatus').innerText = 'Stake successful';
+
+    // Simpan ke array untuk PDF
     userInteractions.push({
       wallet: account,
-      action: `Stake: ${amount} in Pool ${poolId}`,
+      action: `Stake ${amount} on Pool ${poolId}`,
       timestamp: Date.now()
     });
-    await saveUserInteraction(account, `Stake: ${amount} in Pool ${poolId}`);
-    showTab(tabPrefix.includes('myStakes') ? 'myStakes' : 'defaultPool');
+
+    // Simpan ke Firestore untuk persistensi
+    await logInteractionToFirestore(`Stake ${amount} ke Pool ${poolId}`);
+
+    console.log(`Stake successful for pool ${poolId}:`, amount);
   } catch (error) {
-    console.error('Stake error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error('Error staking:', error);
+    document.getElementById('walletStatus').innerText = 'Transaction failed';
   }
 }
+
 
 // Unstake
 async function unstake(poolId, tabPrefix = '') {
   try {
-    const amount = document.getElementById(`${tabPrefix}unstakeAmount${poolId}`).value;
-    if (!amount || amount <= 0) {
-      throw new Error('Amount must be greater than 0');
+    const unstakeInput = document.getElementById(`${tabPrefix}unstakeAmount${poolId}`);
+    if (!unstakeInput) {
+      document.getElementById('walletStatus').textContent = 'Unstake input not found';
+      console.error(`Unstake input element not found for pool ${poolId} with prefix ${tabPrefix}`);
+      return;
+    }
+    const amount = unstakeInput.value.trim();
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      document.getElementById('walletStatus').textContent = 'Please enter a valid unstake amount';
+      console.log(`Invalid unstake amount for pool ${poolId}:`, amount);
+      return;
     }
 
-    const amountInWei = web3.utils.toWei(amount.toString(), 'ether');
-    console.log('Unstaking with params:', { poolId, amount: amountInWei });
+    if (!account) {
+      document.getElementById('walletStatus').textContent = 'Please connect your wallet';
+      console.log('No account connected for unstake');
+      return;
+    }
 
-    await contract.methods.unstake(poolId, amountInWei).send({ from: account });
+    const poolInfo = await contract.methods.getPoolInfo(poolId).call();
+    if (!poolInfo.active) {
+      document.getElementById('walletStatus').textContent = 'Pool is not active';
+      console.log(`Pool ${poolId} is inactive`);
+      return;
+    }
 
+    const userStake = await contract.methods.getUserStake(poolId, account).call();
+    const stakeAmountWei = web3.utils.toWei(amount, 'ether');
+    if (web3.utils.toBN(userStake.amount).lt(web3.utils.toBN(stakeAmountWei))) {
+      document.getElementById('walletStatus').textContent = 'Insufficient staked amount';
+      console.log(`Insufficient stake for pool ${poolId}:`, {
+        userStake: web3.utils.fromWei(userStake.amount, 'ether'),
+        requested: amount
+      });
+      return;
+    }
+
+    const timestamp = Number(userStake.timestamp || 0);
+    const lockPeriod = Number(poolInfo.lockPeriod || 0);
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (timestamp + lockPeriod > currentTime) {
+      document.getElementById('walletStatus').textContent = 'Lock period not yet expired';
+      console.log(`Lock period not expired for pool ${poolId}:`, {
+        unlockTime: timestamp + lockPeriod,
+        currentTime
+      });
+      return;
+    }
+
+    let gasEstimate;
+    try {
+      gasEstimate = await contract.methods
+        .unstake(poolId, stakeAmountWei)
+        .estimateGas({ from: account });
+      console.log(`Gas estimate for unstake pool ${poolId}:`, gasEstimate);
+    } catch (error) {
+      console.error(`Gas estimation failed for pool ${poolId}:`, error);
+      gasEstimate = 200000;
+    }
+
+    const gasLimit = Math.min(Math.max(Math.floor(gasEstimate * 1.2), 100000), 500000);
+    console.log(`Gas limit for unstake pool ${poolId}:`, gasLimit);
+
+    document.getElementById('walletStatus').textContent = 'Unstaking...';
+    console.log(`Sending unstake transaction for pool ${poolId}:`, {
+      amount,
+      amountWei: stakeAmountWei,
+      from: account
+    });
+    const tx = await contract.methods
+      .unstake(poolId, stakeAmountWei)
+      .send({
+        from: account,
+        gas: gasLimit,
+        gasPrice: web3.utils.toWei('12', 'gwei')
+      });
+
+    console.log(`Unstake successful for pool ${poolId}:`, tx);
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
     userInteractions.push({
       wallet: account,
-      action: `Unstake: ${amount} from Pool ${poolId}`,
+      action: `Unstake ${amount} from Pool ${poolId}`,
       timestamp: Date.now()
     });
-    await saveUserInteraction(account, `Unstake: ${amount} from Pool ${poolId}`);
-    showTab(tabPrefix.includes('myStakes') ? 'myStakes' : 'defaultPool');
+    
+    logInteraction(`Unstake ${amount} dari Pool ${poolId}`);
+    console.log('Updating UI after unstake at:', new Date().toLocaleString());
+    await loadAllTabs();
+    await loadMyStakes();
+    console.log('UI updated after unstake for pool:', poolId);
   } catch (error) {
-    console.error('Unstake error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error(`Error unstaking pool ${poolId}:`, error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
 // Claim rewards
 async function claimRewards(poolId) {
   try {
-    console.log('Claiming rewards for pool:', poolId);
-
     await contract.methods.claimRewards(poolId).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Claim Rewards: Pool ${poolId}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Claim Rewards: Pool ${poolId}`);
-    showTab('myStakes');
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
+    userInteractions.push({ wallet: account, action: `Claim Rewards for Pool ${poolId}`, timestamp: Date.now() });
+    loadAllTabs();
+    logInteraction(`Claim Reward di Pool ${poolId}`);
+    logInteraction(`Create Pool: Stake ${stakeToken}, Reward ${rewardToken}, APR ${apr}`);
   } catch (error) {
-    console.error('Claim rewards error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error('Error claiming rewards:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
+  }
+}
+
+// Create pool
+async function createPool() {
+  try {
+    const accounts = await web3.eth.getAccounts();
+    if (!accounts || accounts.length === 0) {
+      document.getElementById('createStatus').textContent = 'Please connect your wallet and try again';
+      return;
+    }
+    const account = accounts[0];
+
+    const stakeToken = document.getElementById('stakeToken').value;
+    const rewardToken = document.getElementById('rewardToken').value;
+    const apr = parseInt(document.getElementById('apr').value);
+    const initialReward = document.getElementById('initialReward').value;
+    const lockPeriod = document.getElementById('lockPeriod').value;
+    const maxRewardPerUser = document.getElementById('maxRewardPerUser').value;
+
+    console.log('Create Pool Input:', {
+      stakeToken,
+      rewardToken,
+      apr,
+      initialReward,
+      initialRewardWei: web3.utils.toWei(initialReward, 'ether'),
+      lockPeriod: lockPeriod * 24 * 60 * 60,
+      maxRewardPerUser: web3.utils.toWei(maxRewardPerUser, 'ether'),
+      account
+    });
+
+    if (!web3.utils.isAddress(stakeToken) && stakeToken !== '0x0000000000000000000000000000000000000000') {
+      document.getElementById('createStatus').textContent = 'Invalid stake token address';
+      return;
+    }
+    if (!web3.utils.isAddress(rewardToken)) {
+      document.getElementById('createStatus').textContent = 'Invalid reward token address';
+      return;
+    }
+    if (isNaN(apr) || apr < 360 || apr > 10000) {
+      document.getElementById('createStatus').textContent = 'APR must be between 360 and 10000';
+      return;
+    }
+    if (isNaN(parseFloat(initialReward)) || parseFloat(initialReward) <= 0) {
+      document.getElementById('createStatus').textContent = 'Initial reward must be greater than 0';
+      return;
+    }
+    if (isNaN(parseInt(lockPeriod)) || parseInt(lockPeriod) > 365) {
+      document.getElementById('createStatus').textContent = 'Lock period cannot exceed 365 days';
+      return;
+    }
+    if (isNaN(parseFloat(maxRewardPerUser)) || parseFloat(maxRewardPerUser) <= 0) {
+      document.getElementById('createStatus').textContent = 'Max reward per user must be greater than 0';
+      return;
+    }
+
+    const tokenContract = new web3.eth.Contract(IERC20_ABI, rewardToken);
+    let decimals;
+    try {
+      decimals = await tokenContract.methods.decimals().call();
+      console.log('Reward Token Decimals:', decimals);
+    } catch {
+      document.getElementById('createStatus').textContent = 'Invalid reward token';
+      return;
+    }
+
+    const initialRewardWei = web3.utils.toWei(initialReward, 'ether');
+    const allowance = await tokenContract.methods.allowance(account, CONTRACT_ADDRESS).call();
+    console.log('Allowance:', web3.utils.fromWei(allowance, 'ether'));
+    if (web3.utils.toBN(allowance).lt(web3.utils.toBN(initialRewardWei))) {
+      console.log('Approving reward token...');
+      document.getElementById('createStatus').textContent = 'Waiting approve';
+      const nonceApprove = await web3.eth.getTransactionCount(account, 'pending');
+      await tokenContract.methods.approve(CONTRACT_ADDRESS, initialRewardWei).send({
+        from: account,
+        gas: 100000,
+        gasPrice: web3.utils.toWei('12', 'gwei'),
+        nonce: nonceApprove
+      });
+      console.log('Approved Allowance:', web3.utils.fromWei(await tokenContract.methods.allowance(account, CONTRACT_ADDRESS).call(), 'ether'));
+    }
+
+    // Ambil creationFee dari kontrak
+    let creationFee = '0';
+    try {
+      creationFee = await contract.methods.creationFee().call();
+      console.log('Creation Fee:', web3.utils.fromWei(creationFee, 'ether'));
+    } catch (error) {
+      console.error('Failed to fetch creationFee:', error);
+      document.getElementById('createStatus').textContent = 'Failed to fetch creation fee';
+      return;
+    }
+
+    // Hitung msg.value: creationFee + initialRewardWei (jika rewardToken adalah native token)
+    let msgValue = rewardToken === '0x0000000000000000000000000000000000000000' ? web3.utils.toBN(initialRewardWei) : web3.utils.toBN('0');
+    const isAdmin = await contract.methods.hasRole(await contract.methods.DEFAULT_ADMIN_ROLE().call(), account).call();
+    if (!isAdmin) {
+      msgValue = msgValue.add(web3.utils.toBN(creationFee));
+    }
+    console.log('Msg Value:', web3.utils.fromWei(msgValue, 'ether'));
+
+    const nonce = await web3.eth.getTransactionCount(account, 'pending');
+    console.log('Nonce:', nonce);
+    let gasEstimate;
+    try {
+      gasEstimate = await contract.methods.createPool(
+        stakeToken,
+        [rewardToken],
+        apr * 1,
+        [initialRewardWei],
+        lockPeriod * 24 * 60 * 60,
+        web3.utils.toWei(maxRewardPerUser, 'ether')
+      ).estimateGas({ 
+        from: account,
+        value: msgValue
+      });
+      console.log('Gas Estimate:', gasEstimate);
+    } catch (error) {
+      console.error('Gas estimation failed:', error);
+      gasEstimate = 500000;
+    }
+
+    const gasLimit = Math.min(Math.max(Math.floor(gasEstimate * 1.2), 500000), 2000000);
+    console.log('Gas Limit:', gasLimit);
+
+    document.getElementById('createStatus').textContent = 'Creating pool...';
+    const tx = await contract.methods.createPool(
+      stakeToken,
+      [rewardToken],
+      apr * 1,
+      [initialRewardWei],
+      lockPeriod * 24 * 60 * 60,
+      web3.utils.toWei(maxRewardPerUser, 'ether')
+    ).send({
+      from: account,
+      gas: gasLimit,
+      gasPrice: web3.utils.toWei('12', 'gwei'),
+      nonce,
+      value: msgValue
+    });
+
+    const poolCount = await contract.methods.poolCount().call();
+    const poolId = poolCount - 1;
+    window.newPoolIds = window.newPoolIds || [];
+    window.newPoolIds.push(Number(poolId));
+    console.log('Added to window.newPoolIds:', window.newPoolIds);
+    console.log('Created Pool ID:', poolId);
+
+    const poolInfo = await contract.methods.getPoolInfo(poolId).call();
+    console.log(`New Pool ${poolId} Info:`, JSON.stringify(poolInfo, null, 2));
+
+    document.getElementById('createStatus').textContent = 'Approve transaction success';
+    console.log('Set createStatus to Transaction successful at:', new Date().toISOString());
+    logInteraction(`Create Pool ID ${poolId} | Stake ${stakeToken} | Reward ${rewardToken} | APR ${apr}`);
+
+    // Tangani getCreatorPoolIds dengan try-catch untuk mencegah error menghentikan eksekusi
+    let creatorPoolIds = [];
+    try {
+      creatorPoolIds = await contract.methods.getCreatorPoolIds(account, 0, 10).call();
+      console.log('Creator Pool IDs:', creatorPoolIds);
+    } catch (error) {
+      console.error('Failed to fetch creator pool IDs:', error);
+      document.getElementById('createStatus').textContent = 'Pool created, but failed to fetch creator pool IDs';
+    }
+
+  } catch (error) {
+    console.error('Error creating pool:', error);
+    document.getElementById('createStatus').textContent = 'Failed to create pool';
+    throw error;
+  }
+}
+
+// Authorize upgrade
+async function upgradeTo() {
+  try {
+    if (!isOwner) throw new Error('Only owner can authorize upgrade');
+    const newImplementation = document.getElementById('newImplementationAddress').value;
+    await contract.methods.upgradeTo(newImplementation).send({ from: account });
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
+  } catch (error) {
+    console.error('Error authorizing upgrade:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
@@ -3666,16 +3601,11 @@ async function claimRewards(poolId) {
 async function pauseContract() {
   try {
     await contract.methods.pause().send({ from: account });
-    document.getElementById('walletStatus').textContent = 'Contract paused';
-    userInteractions.push({
-      wallet: account,
-      action: 'Pause Contract',
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, 'Pause Contract');
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
+    loadOwnerTools();
   } catch (error) {
-    console.error('Pause contract error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error('Error pausing contract:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
@@ -3683,325 +3613,578 @@ async function pauseContract() {
 async function unpauseContract() {
   try {
     await contract.methods.unpause().send({ from: account });
-    document.getElementById('walletStatus').textContent = 'Contract unpaused';
-    userInteractions.push({
-      wallet: account,
-      action: 'Unpause Contract',
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, 'Unpause Contract');
-  } catch (error) {
-    console.error('Unpause contract error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
-  }
-}
-
-// Withdraw tokens
-async function withdrawTokens() {
-  try {
-    const tokenAddress = document.getElementById('withdrawTokenAddress').value;
-    const amount = document.getElementById('withdrawAmount').value;
-
-    if (!web3.utils.isAddress(tokenAddress)) {
-      throw new Error('Invalid token address');
-    }
-    if (!amount || amount <= 0) {
-      throw new Error('Amount must be greater than 0');
-    }
-
-    const amountInWei = web3.utils.toWei(amount.toString(), 'ether');
-    console.log('Withdrawing tokens with params:', { tokenAddress, amount: amountInWei });
-
-    await contract.methods.withdraw(tokenAddress, amountInWei).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Withdraw Tokens: ${amount} ${tokenAddress}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Withdraw Tokens: ${amount} ${tokenAddress}`);
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
     loadOwnerTools();
   } catch (error) {
-    console.error('Withdraw tokens error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error('Error unpausing contract:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
 // Set creation fee
 async function setCreationFee() {
   try {
+    if (!isOwner) throw new Error('Owner access required');
     const newFee = document.getElementById('newCreationFee').value;
-    if (!newFee || newFee < 0) {
-      throw new Error('Fee cannot be negative');
-    }
-
-    const feeInWei = web3.utils.toWei(newFee.toString(), 'ether');
-    console.log('Setting creation fee:', feeInWei);
-
-    await contract.methods.setCreationFee(feeInWei).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Set Creation Fee: ${newFee} CHIPS`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Set Creation Fee: ${newFee} CHIPS`);
+    if (!newFee || newFee < 0) throw new Error('Invalid fee');
+    await contract.methods.setCreationFee(web3.utils.toWei(newFee, 'ether')).send({ from: account });
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
+    userInteractions.push({ wallet: account, action: `Set creation fee to ${newFee}`, timestamp: Date.now() });
     loadOwnerTools();
   } catch (error) {
-    console.error('Set creation fee error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error('Error setting creation fee:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
-// Upgrade contract
-async function upgradeTo() {
+// Withdraw tokens
+async function withdrawTokens() {
   try {
-    const newImplementation = document.getElementById('newImplementationAddress').value;
-    if (!web3.utils.isAddress(newImplementation)) {
-      throw new Error('Invalid implementation address');
-    }
-
-    console.log('Upgrading contract to:', newImplementation);
-
-    await contract.methods.upgradeTo(newImplementation).send({ from: account });
-
-    userInteractions.push({
-      wallet: account,
-      action: `Upgrade Contract: ${newImplementation}`,
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, `Upgrade Contract: ${newImplementation}`);
+    if (!isOwner) throw new Error('Only owner can withdraw tokens');
+    const tokenAddress = document.getElementById('withdrawToken').value;
+    const amount = document.getElementById('withdrawAmount').value;
+    if (!web3.utils.isAddress(tokenAddress) && tokenAddress !== '0x0000000000000000000000000000000000000000') throw new Error('Invalid token address');
+    if (!amount || amount <= 0) throw new Error('Invalid amount');
+    await contract.methods.withdraw(web3.utils.toWei(amount, 'ether'), tokenAddress).send({ from: account });
+    document.getElementById('walletStatus').textContent = 'Withdraw transaction success';
+    userInteractions.push({ wallet: account, action: `Withdraw ${amount} of token ${tokenAddress}`, timestamp: Date.now() });
     loadOwnerTools();
   } catch (error) {
-    console.error('Upgrade contract error:', error);
-    document.getElementById('walletStatus').textContent = `Error: ${error.message}`;
+    console.error('Withdraw error:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
+  }
+}
+
+// Deactivate pool (Owner and Creator)
+async function deactivatePool(department) {
+  try {
+    const poolId = department === 'owner' ? document.getElementById('poolIdDeactivate').value : document.getElementById('creatorManagePoolId').value;
+    if (!poolId || isNaN(Number(poolId))) throw new Error('Invalid pool ID');
+    if (department === 'creator' && !isCreator && !isOwner) throw new Error('Creator or owner access required');
+    if (department === 'owner' && !isOwner) throw new Error('Owner access required');
+    await contract.method.deactivatePool(poolId).send({ from: account });
+    document.getElementById('walletStatus').textContent = 'Transaction success';
+    userInteractions.push({ wallet: account, action: `Deactivate Pool ${poolId}`, timestamp: Date.now() });
+    if (department === 'owner') {
+      loadOwnerTools();
+    } else {
+      loadCreatorTools();
+    }
+  } catch (error) {
+    console.error('Error deactivating pool:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
+  }
+}
+
+// Activate pool (Owner and Creator)
+async function activatePool(department) {
+  try {
+    const poolId = department === 'owner' ? document.getElementById('poolIdActivate').value : document.getElementById('creatorManagePoolId').value;
+    if (!poolId || isNaN(Number(poolId))) throw new Error('Invalid pool ID');
+    if (department === 'creator' && !isCreator && !isOwner) throw new Error('Creator or owner access required');
+    if (department === 'owner' && !isOwner) throw new Error('Owner access required');
+    await contract.method.activatePool(poolId).send({ from: account });
+    document.getElementById('walletStatus').textContent = 'Transaction success';
+    userInteractions.push({ wallet: account, action: `Activate Pool ${poolId}`, timestamp: Date.now() });
+    if (department === 'owner') {
+      loadOwnerTools();
+    } else {
+      loadCreatorTools();
+    }
+  } catch (error) {
+    console.error('Error activating pool:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
 // Get all pool IDs
 async function getAllPoolIds() {
   try {
-    const allPoolIds = document.getElementById('allPoolIds');
+    const poolIdsElement = document.getElementById('allPoolIds');
+    poolIdsElement.textContent = '';
+
+    if (!contract || !account) {
+      poolIdsElement.textContent = 'Wallet not connected';
+      return;
+    }
+
     let poolIds = [];
     try {
-      poolIds = await contract.methods.getAllPoolIds(0, 100).call();
+      // 🧠 Panggil pakai 'from: account' agar roles terdeteksi
+      poolIds = await contract.methods.getAllPoolIds(0, 100).call({ from: account });
+      console.log('Pool IDs from getAllPoolIds():', poolIds);
     } catch (error) {
-      console.warn('getAllPoolIds failed, falling back to manual check:', error.message);
+      console.warn('getAllPoolIds() failed, fallback ke manual:', error.message);
+
       const poolCount = Number(await contract.methods.poolCount().call());
       for (let i = 0; i < poolCount; i++) {
         try {
           const pool = await contract.methods.getPoolInfo(i).call();
           if (pool.active) poolIds.push(i);
-        } catch (poolError) {
-          console.error(`Error fetching pool ${i}:`, poolError.message);
+        } catch (innerError) {
+          console.error(`Gagal ambil info pool ${i}:`, innerError.message);
         }
       }
     }
-    allPoolIds.textContent = `Pool IDs: ${poolIds.join(', ')}`;
-    userInteractions.push({
-      wallet: account,
-      action: 'Get All Pool IDs',
-      timestamp: Date.now()
-    });
-    await saveUserInteraction(account, 'Get All Pool IDs');
+
+    poolIdsElement.textContent = poolIds.length ? poolIds.join(', ') : 'No active pools';
   } catch (error) {
-    console.error('Get all pool IDs error:', error);
-    document.getElementById('allPoolIds').textContent = `Error: ${error.message}`;
+    console.error('Error fetching pool IDs:', error.message);
+    document.getElementById('allPoolIds').textContent = 'Error fetching pool IDs';
   }
 }
 
 // Get creator pool IDs
 async function getCreatorPoolIds() {
   try {
+    if (!isOwner) throw new Error('Owner access required');
     const creatorAddress = document.getElementById('creatorAddress').value;
-    const creatorPoolIds = document.getElementById('creatorPoolIds');
-    if (!web3.utils.isAddress(creatorAddress)) {
-      throw new Error('Invalid creator address');
+    if (!web3.utils.isAddress(creatorAddress)) throw new Error('Invalid creator address');
+    const poolIds = await contract.method.getCreatorPoolIds(creatorAddress, 0, 100).call();
+    document.getElementById('creatorPoolIds').textContent = poolIds.join(', ') || 'No pools found';
+  } catch (error) {
+    console.error('Error getting creator pool IDs:', error);
+    document.getElementById('creatorPoolIds').textContent = 'Error fetching pool IDs';
+  }
+}
+
+// Fund reward (Admin and Creator)
+async function fundReward() {
+  try {
+    const poolId = document.getElementById('fundPoolId').value;
+    const rewardToken = document.getElementById('rewardToken').value;
+    const amount = document.getElementById('fundAmount').value;
+    const fundStatus = document.getElementById('fundStatus');
+
+    if (!poolId || isNaN(Number(poolId))) {
+      fundStatus.textContent = 'Please select a valid pool';
+      throw new Error('Invalid or no pool selected');
     }
-    let poolIds = [];
-    try {
-      poolIds = await contract.methods.getCreatorPoolIds(creatorAddress, 0, 100).call();
-    } catch (error) {
-      console.warn('getCreatorPoolIds failed, falling back to manual check:', error.message);
-      const poolCount = Number(await contract.methods.poolCount().call());
-      for (let i = 0; i < poolCount; i++) {
-        try {
-          const pool = await contract.methods.getPoolInfo(i).call();
-          if (pool.creator.toLowerCase() === creatorAddress.toLowerCase() && pool.active) {
-            poolIds.push(i);
-          }
-        } catch (poolError) {
-          console.error(`Error fetching pool ${i}:`, poolError.message);
-        }
+    if (!web3.utils.isAddress(rewardToken)) {
+      fundStatus.textContent = 'Invalid reward token address';
+      throw new Error('Invalid reward token address');
+    }
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      fundStatus.textContent = 'Please enter a valid amount';
+      throw new Error('Invalid amount');
+    }
+
+    // Ambil pool info
+    const pool = await contract.methods.getPoolInfo(poolId).call();
+    if (!pool.active) {
+      fundStatus.textContent = 'Pool is not active';
+      throw new Error('Pool is not active');
+    }
+
+    // Validasi reward token
+    const expectedRewardToken = pool.rewardTokens && pool.rewardTokens.length > 0 ? pool.rewardTokens[0] : '0x0000000000000000000000000000000000000000';
+    if (rewardToken.toLowerCase() !== expectedRewardToken.toLowerCase()) {
+      fundStatus.textContent = 'Reward token does not match pool configuration';
+      throw new Error('Reward token does not match');
+    }
+
+    // Cek hak akses
+    const isAdmin = await contract.methods.hasRole(await contract.methods.DEFAULT_ADMIN_ROLE().call(), account).call();
+    const isPoolCreator = pool.creator.toLowerCase() === account.toLowerCase();
+    if (!isAdmin && !isPoolCreator) {
+      fundStatus.textContent = 'Access restricted to admin or pool creator';
+      throw new Error('Access restricted');
+    }
+
+    const amountInWei = web3.utils.toWei(amount, 'ether');
+    let txOptions = { from: account, gas: 200000, gasPrice: web3.utils.toWei('12', 'gwei') };
+
+    // Handle native (CHIPS) atau ERC20
+    if (rewardToken === '0x0000000000000000000000000000000000000000') {
+      const balance = await web3.eth.getBalance(account);
+      if (Number(balance) < Number(amountInWei)) {
+        fundStatus.textContent = 'Insufficient CHIPS balance';
+        throw new Error('Insufficient CHIPS balance');
+      }
+      txOptions.value = amountInWei;
+    } else {
+      const tokenContract = new web3.eth.Contract(IERC20_ABI, rewardToken);
+      const balance = await tokenContract.methods.balanceOf(account).call();
+      if (Number(balance) < Number(amountInWei)) {
+        fundStatus.textContent = 'Insufficient token balance';
+        throw new Error('Insufficient token balance');
+      }
+      const allowance = await tokenContract.methods.allowance(account, contract.options.address).call();
+      if (Number(allowance) < Number(amountInWei)) {
+        fundStatus.textContent = 'Approving...';
+        await tokenContract.methods
+          .approve(contract.options.address, amountInWei)
+          .send({ from: account, gas: 100000, gasPrice: web3.utils.toWei('12', 'gwei') });
+        fundStatus.textContent = 'Token approved';
       }
     }
-    creatorPoolIds.textContent = `Creator Pool IDs: ${poolIds.join(', ')}`;
+
+    // Set waktu distribusi
+    const startTime = Math.floor(Date.now() / 1000) + 60;
+    const endTime = startTime + 7 * 24 * 60 * 60;
+    console.log(`Funding pool ${poolId} with ${amount} ${rewardToken} from ${startTime} to ${endTime}`);
+
+    // Fund reward
+    fundStatus.textContent = 'Funding reward...';
+    const tx = await contract.methods
+      .fundReward(poolId, rewardToken, amountInWei, startTime, endTime)
+      .send(txOptions);
+
+    // Delay lebih panjang
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    fundStatus.textContent = 'Transaction success';
     userInteractions.push({
       wallet: account,
-      action: `Get Creator Pool IDs: ${creatorAddress}`,
+      action: `Fund ${amount} ${rewardToken === '0x0000000000000000000000000000000000000000' ? 'CHIPS' : rewardToken} to Pool ${poolId}`,
       timestamp: Date.now()
     });
-    await saveUserInteraction(account, `Get Creator Pool IDs: ${creatorAddress}`);
+
+    // Update UI
+    await updateRewardTokenField('fund', isAdmin);
+    await updatePoolDetail(poolId);
+    console.log(`Fund transaction hash: ${tx.transactionHash}`);
+
+    // Retry trigger loadPool
+    let retries = 3;
+    while (retries > 0) {
+      if (typeof loadPool === 'function') {
+        await loadPool([poolId]);
+        console.log(`Triggered loadPool for pool ${poolId}`);
+        break;
+      }
+      console.warn(`loadPool not found, retrying... (${retries} left)`);
+      retries--;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    if (retries === 0) {
+      console.error(`loadPool not found after retries, UI pool detail may not update`);
+    }
   } catch (error) {
-    console.error('Get creator pool IDs error:', error);
-    document.getElementById('creatorPoolIds').textContent = `Error: ${error.message}`;
+    console.error('Error funding reward:', error);
+    document.getElementById('fundStatus').textContent = 'success';
   }
 }
 
-// Load pinned pool IDs from Firestore
-async function loadPinnedPoolIds() {
+// Update APR (Owner and Creator)
+async function updateApr(department) {
   try {
-    if (!account) {
-      console.warn('No account connected, returning empty pinned pool IDs');
-      return [];
+    const poolId = department === 'owner' ? document.getElementById('aprPoolId').value : document.getElementById('creatorUpdatePoolId').value;
+    const newApr = department === 'owner' ? document.getElementById('newApr').value : document.getElementById('creatorNewApr').value;
+    if (!poolId || isNaN(Number(poolId))) throw new Error('Invalid pool ID');
+    if (isNaN(newApr) || newApr < 360 || newApr > 10000) throw new Error('APR must be between 360 and 10000');
+    if (department === 'creator' && !isCreator && !isOwner) throw new Error('Creator or owner access required');
+    if (department === 'owner' && !isOwner) throw new Error('Owner access required');
+    
+    await contract.methods.updateApr(poolId, newApr * 1).send({ from: account });
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
+    userInteractions.push({ wallet: account, action: `Update APR to ${newApr}% for Pool ${poolId}`, timestamp: Date.now() });
+    if (department === 'owner') {
+      loadOwnerTools();
+    } else {
+      loadCreatorTools();
     }
-    if (!db) {
-      console.error('Firestore not initialized. Cannot load pinned pool IDs.');
-      return [];
-    }
-    const docRef = db.collection('users').doc(account.toLowerCase());
-    const doc = await docRef.get();
-    if (doc.exists) {
-      const data = doc.data();
-      return data.pinnedPoolIds || [];
-    }
-    return [];
   } catch (error) {
-    console.error('Error loading pinned pool IDs from Firestore:', error.message);
-    return [];
+    console.error('Error updating APR:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
-// Save pinned pool IDs to Firestore
-async function savePinnedPoolIds(pinnedPoolIds) {
+// Update pool parameters (Owner and Creator)
+async function updatePoolParameters() {
   try {
-    if (!account) {
-      console.warn('No account connected, cannot save pinned pool IDs');
-      return;
-    }
-    if (!db) {
-      console.error('Firestore not initialized. Cannot save pinned pool IDs.');
-      return;
-    }
-    const docRef = db.collection('users').doc(account.toLowerCase());
-    await docRef.set({ pinnedPoolIds }, { merge: true });
-    console.log('Pinned pool IDs saved to Firestore:', pinnedPoolIds);
+    const poolId = document.getElementById('paramPoolId').value || document.getElementById('creatorParamPoolId').value;
+    const newLockPeriod = document.getElementById('newLockPeriod').value || document.getElementById('creatorNewLockPeriod').value;
+    const newMaxReward = document.getElementById('newMaxReward').value || document.getElementById('creatorNewMaxReward').value;
+    if (!poolId || isNaN(Number(poolId))) throw new Error('Invalid pool ID');
+    if (isNaN(parseInt(newLockPeriod)) || newLockPeriod < 0 || newLockPeriod > 365) throw new Error('Lock period must be between 0 and 365 days');
+    if (isNaN(parseFloat(newMaxReward)) || newMaxReward <= 0) throw new Error('Max reward must be greater than 0');
+    
+    await contract.methods.updatePoolParameters(
+      poolId,
+      newLockPeriod * 24 * 60 * 60,
+      web3.utils.toWei(newMaxReward, 'ether')
+    ).send({ from: account });
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
+    userInteractions.push({ wallet: account, action: `Update parameters for Pool ${poolId}`, timestamp: Date.now() });
   } catch (error) {
-    console.error('Error saving pinned pool IDs to Firestore:', error.message);
+    console.error('Error updating pool parameters:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
   }
 }
 
-// Save user interaction to Firestore
-async function saveUserInteraction(wallet, action) {
+// Withdraw from pool (Owner and Creator)
+async function withdrawFromPool(department) {
   try {
-    if (!wallet) {
-      console.warn('No wallet address provided, cannot save interaction');
+    const poolIdElement = department === 'owner' ? document.getElementById('withdrawPoolId') : document.getElementById('creatorWithdrawPoolId');
+    const amountElement = department === 'owner' ? document.getElementById('withdrawPoolAmount') : document.getElementById('creatorWithdrawAmount');
+    const tokenElement = department === 'owner' ? document.getElementById('withdrawToken') : document.getElementById('creatorWithdrawToken');
+    
+    if (!poolIdElement || !amountElement || !tokenElement) {
+      console.warn(`Missing DOM elements for ${department}: poolId=${!!poolIdElement}, amount=${!!amountElement}, token=${!!tokenElement}`);
+      document.getElementById('walletStatus').textContent = 'Transaction failed';
       return;
     }
-    if (!db) {
-      console.error('Firestore not initialized, cannot save interaction');
+    
+    const poolId = poolIdElement.value;
+    const amount = amountElement.value;
+    const token = tokenElement.value || '';
+    
+    console.log(`Withdraw attempt: poolId=${poolId}, amount=${amount}, token=${token}, department=${department}`);
+    
+    if (!poolId || isNaN(Number(poolId))) {
+      document.getElementById('walletStatus').textContent = 'Transaction failed';
+      throw new Error('Invalid pool ID');
+    }
+    if (!token || (!web3.utils.isAddress(token))) {
+      document.getElementById('walletStatus').textContent = 'Transaction failed';
+      throw new Error('Invalid token address');
+    }
+    if (!amount || amount <= 0) {
+      document.getElementById('walletStatus').textContent = 'Transaction failed';
+      throw new Error('Invalid amount');
+    }
+    if (department === 'creator' && !isCreator && !isOwner) {
+      document.getElementById('walletStatus').textContent = 'Transaction failed';
+      throw new Error('Creator or owner access required');
+    }
+    if (department === 'owner' && !isOwner) {
+      document.getElementById('walletStatus').textContent = 'Transaction failed';
+      throw new Error('Owner access required');
+    }
+    
+    const amountInWei = web3.utils.toWei(amount, 'ether');
+
+    if (department === 'owner') {
+      // Cek apakah akun memiliki DEFAULT_ADMIN_ROLE
+      const DEFAULT_ADMIN_ROLE = '0x0000000000000000000000000000000000000000';
+      const hasAdminRole = await contract.methods.hasRole(DEFAULT_ADMIN_ROLE, account).call();
+      console.log(`Account ${account} has DEFAULT_ADMIN_ROLE: ${hasAdminRole}`);
+      if (!hasAdminRole) {
+        document.getElementById('walletStatus').textContent = 'Transaction failed';
+        throw new Error('Only admin can withdraw');
+      }
+
+      // Panggil fungsi withdraw untuk owner/admin
+      console.log(`Contract call: withdraw(${token}, ${amountInWei})`);
+      await contract.methods.withdraw(token, amountInWei).send({ from: account });
+    } else {
+      // Verifikasi syarat untuk creator
+      const poolCount = Number(await contract.methods.poolCount().call());
+      if (poolId >= poolCount) {
+        document.getElementById('walletStatus').textContent = 'Transaction failed';
+        throw new Error(`Invalid pool ID: ${poolId} >= poolCount (${poolCount})`);
+      }
+
+      const pool = await contract.methods.getPoolInfo(poolId).call();
+      console.log(`Pool ${poolId} info:`, pool);
+      if (pool.creator.toLowerCase() !== account.toLowerCase()) {
+        document.getElementById('walletStatus').textContent = 'Transaction failed';
+        throw new Error(`Only creator can withdraw: account=${account}, creator=${pool.creator}`);
+      }
+
+      if (!pool.rewardTokens.includes(token)) {
+        document.getElementById('walletStatus').textContent = 'Transaction failed';
+        throw new Error(`Reward token ${token} not in pool.rewardTokens:`, pool.rewardTokens);
+      }
+
+      const balanceInWei = await getTotalRewardFromEvents(poolId, token);
+      const remainingReward = parseInt(web3.utils.fromWei(balanceInWei, 'ether'));
+      console.log(`Remaining reward for pool ${poolId}, token ${token}:`, remainingReward);
+      if (amount > remainingReward) {
+        document.getElementById('walletStatus').textContent = 'Transaction failed';
+        throw new Error(`Insufficient available reward: requested=${amount}, available=${remainingReward}`);
+      }
+
+      // Panggil withdrawFromPool untuk creator
+      console.log(`Contract call: withdrawFromPool(${poolId}, ${amountInWei}, ${token})`);
+      await contract.methods.withdrawFromPool(poolId, amountInWei, token).send({ from: account });
+    }
+    
+    document.getElementById('walletStatus').textContent = 'Approve transaction success';
+    userInteractions.push({ wallet: account, action: `Withdraw ${amount} from Pool ${poolId}`, timestamp: Date.now() });
+
+    // Tambahkan delay untuk memastikan blockchain update
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Perbarui UI setelah withdraw berhasil
+    const typeId = department === 'owner' ? 'fund' : 'withdraw';
+    await updateRewardTokenField(typeId, department === 'owner');
+
+    // Trigger ulang createPoolCard untuk refresh UI pool card
+    try {
+      const pool = await contract.methods.getPoolInfo(poolId).call();
+      const poolCardContainer = document.getElementById(`poolCard${poolId}`) || document.createElement('div');
+      const newCard = await createPoolCard(poolId, pool, false, department === 'owner' ? 'owner' : 'creator');
+      poolCardContainer.replaceWith(newCard);
+      console.log(`Refreshed pool card for pool ${poolId}`);
+    } catch (error) {
+      console.error(`Failed to refresh pool card for pool ${poolId}:`, error);
+    }
+
+  } catch (error) {
+    console.error('Error withdrawing:', error);
+    document.getElementById('walletStatus').textContent = 'Transaction failed';
+  }
+}
+
+// Get pool info
+async function getPoolInfo(poolId) {
+  try {
+    const pool = await contract.method.getPoolInfo(poolId).call();
+    console.log(`Pool ${poolId} info:`, pool);
+    return pool;
+  } catch (error) {
+    console.error(`Error fetching pool ${poolId} info:`, error);
+    return null;
+  }
+}
+
+// Get stake info
+async function getStakeInfo(poolId, userAddress) {
+  try {
+    const stakeInfo = await contract.method.getStakeInfo(poolId, userAddress).call();
+    console.log(`Stake info for pool ${poolId}, user ${userAddress}:`, stakeInfo);
+    return stakeInfo;
+  } catch (error) {
+    console.error(`Error fetching stake info for pool ${poolId}:`, error);
+    return null;
+  }
+}
+
+// Get contract balances
+async function getContractBalances() {
+  try {
+    const balances = {};
+    const tokens = [CHIPS_ADDRESS, USDT_ADDRESS];
+    for (let token of tokens) {
+      if (token === '0x0000000000000000000000000000000000000000') {
+        balances['CHIPS'] = web3.utils.fromWei(await web3.eth.getBalance(contract.options.address), 'ether');
+      } else {
+        const tokenContract = new web3.eth.Contract(IERC20_ABI, token);
+        balances[await getTokenName(token)] = web3.utils.fromWei(
+          await tokenContract.method.balanceOf(contract.options.address).call(),
+          'ether'
+        );
+      }
+    }
+    console.log('Contract balances:', balances);
+    return balances;
+  } catch (error) {
+    console.error('Error fetching contract balances:', error);
+    return null;
+  }
+}
+
+// Fungsi untuk download interaksi user sebagai PDF dari Firestore
+async function downloadUserInteractions() {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    // Ambil data interaksi dari Firestore
+    const db = firebase.firestore();
+    const snapshot = await db.collection('userInteractions').get();
+    const firestoreData = snapshot.docs.map(doc => doc.data());
+
+    if (firestoreData.length === 0) {
+      alert('Belum ada interaksi tersimpan');
       return;
     }
-    await db.collection('userInteractions').add({
-      wallet: wallet.toLowerCase(),
-      action,
-      timestamp: window.firebase.firestore.FieldValue.serverTimestamp()
+
+    // Hitung total interaksi per wallet
+    const interactionSummary = {};
+    firestoreData.forEach(interaction => {
+      if (!interactionSummary[interaction.wallet]) {
+        interactionSummary[interaction.wallet] = 0;
+      }
+      interactionSummary[interaction.wallet]++;
     });
-    console.log(`User interaction saved: ${action}`);
-  } catch (error) {
-    console.error('Error saving user interaction to Firestore:', error);
-  }
-}
 
-// Load user interactions from Firestore
-async function loadUserInteractions() {
-  try {
-    if (!account) {
-      console.warn('No account connected, returning empty interactions');
-      return [];
-    }
-    if (!db) {
-      console.error('Firestore not initialized, returning empty interactions');
-      return [];
-    }
-    const querySnapshot = await db.collection('userInteractions')
-      .where('wallet', '==', account.toLowerCase())
-      .orderBy('timestamp', 'desc')
-      .get();
-    const interactions = [];
-    querySnapshot.forEach(doc => {
-      const data = doc.data();
-      interactions.push({
-        wallet: data.wallet,
-        action: data.action,
-        timestamp: data.timestamp ? data.timestamp.toDate().getTime() : Date.now()
-      });
+    // Buat data untuk tabel
+    const tableData = Object.entries(interactionSummary).map(([wallet, count]) => [wallet, count]);
+
+    // Definisikan header
+    const headers = ['Wallet', 'Total Interaksi'];
+
+    // Konfigurasi AutoTable
+    doc.autoTable({
+      head: [headers],
+      body: tableData,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [41, 128, 185] },
+      columnStyles: {
+        0: { cellWidth: 120 }, // Wallet
+        1: { cellWidth: 60 }   // Jumlah
+      },
+      margin: { top: 20 },
+      didDrawPage: (data) => {
+        doc.setFontSize(14);
+        doc.text('User Interactions Report', data.settings.margin.left, 15);
+      }
     });
-    return interactions;
+
+    // Simpan PDF
+    doc.save(`user_interactions_${new Date().toISOString().split('T')[0]}.pdf`);
   } catch (error) {
-    console.error('Error loading user interactions from Firestore:', error);
-    return [];
+    console.error('Error generating PDF:', error);
+    alert('Gagal membuat PDF: ' + error.message);
   }
 }
 
-// Initialize app data
-async function initializeAppData() {
-  try {
-    if (!account) {
-      console.warn('No account connected, skipping app data initialization');
-      return;
-    }
-    if (!db) {
-      console.error('Firestore not initialized, skipping app data initialization');
-      return;
-    }
-    userInteractions = await loadUserInteractions();
-    console.log('App data initialized with user interactions:', userInteractions.length);
-  } catch (error) {
-    console.error('Error initializing app data:', error);
-  }
+
+// Fungsi opsional untuk reset interaksi
+function clearInteractions() {
+  userInteractions = [];
+  localStorage.removeItem('userInteractions');
+  alert('Interaksi user telah direset!');
 }
 
 // Pin pool
 async function pinPool() {
   try {
-    const poolId = document.getElementById('pinPoolId').value;
+    const pinPoolId = document.getElementById('pinPoolId').value;
     const pinStatus = document.getElementById('pinStatus');
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
+    if (!pinPoolId || isNaN(Number(pinPoolId))) {
+      pinStatus.textContent = 'Please select a valid pool';
+      console.log('Invalid pool ID for pinning:', pinPoolId);
+      return;
     }
-
-    // Tunggu Firebase diinisiasi
-    if (!db) {
-      console.log('Firestore not initialized, attempting to initialize...');
-      const initialized = await initFirebase();
-      if (!initialized || !db) {
-        console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
-        pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
-        return;
-      }
-    }
-
-    const pinnedPoolIds = await loadPinnedPoolIds();
-    if (pinnedPoolIds.includes(Number(poolId))) {
-      pinStatus.textContent = 'Pool already pinned';
+    if (!isOwner) {
+      pinStatus.textContent = 'Owner access required';
+      console.log('Non-owner attempted to pin pool');
       return;
     }
 
-    pinnedPoolIds.push(Number(poolId));
-    await savePinnedPoolIds(pinnedPoolIds);
+    // Ambil pinned pool IDs dari Firestore
+    const db = firebase.firestore();
+    const pinnedPoolDocRef = db.collection('pinnedPools').doc(ADMIN_WALLET);
+    const pinnedPoolDoc = await pinnedPoolDocRef.get();
+    let pinnedPoolIds = pinnedPoolDoc.exists ? pinnedPoolDoc.data().poolIds || [] : [];
 
-    pinStatus.textContent = `Pool ${poolId} pinned successfully`;
+    if (pinnedPoolIds.includes(Number(pinPoolId))) {
+      pinStatus.textContent = 'Pool already pinned';
+      console.log(`Pool ${pinPoolId} already pinned`);
+      return;
+    }
+
+    // Tambah pool ID ke pinned list
+    pinnedPoolIds.push(Number(pinPoolId));
+    await pinnedPoolDocRef.set({ poolIds: pinnedPoolIds }, { merge: true });
+    pinStatus.textContent = `Pool ${pinPoolId} pinned successfully`;
+    console.log(`Pinned pool ${pinPoolId}`);
+
+    // Log interaksi
     userInteractions.push({
       wallet: account,
-      action: `Pin Pool: ${poolId}`,
+      action: `Pin Pool: ${pinPoolId}`,
       timestamp: Date.now()
     });
-    await saveUserInteraction(account, `Pin Pool: ${poolId}`);
-    loadOwnerTools();
-    showTab('defaultPool');
+
+    // Refresh Default Pool
+    await loadDefaultPool();
   } catch (error) {
-    console.error('Pin pool error:', error.message);
+    console.error('Error pinning pool:', error);
     document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
   }
 }
@@ -4009,68 +4192,48 @@ async function pinPool() {
 // Unpin pool
 async function unpinPool() {
   try {
-    const poolId = document.getElementById('pinPoolId').value;
+    const pinPoolId = document.getElementById('pinPoolId').value;
     const pinStatus = document.getElementById('pinStatus');
-    if (!poolId || isNaN(Number(poolId))) {
-      throw new Error('Invalid pool ID');
+    if (!pinPoolId || isNaN(Number(pinPoolId))) {
+      pinStatus.textContent = 'Please select a valid pool';
+      console.log('Invalid pool ID for unpinning:', pinPoolId);
+      return;
     }
-
-    // Tunggu Firebase diinisiasi
-    if (!db) {
-      console.log('Firestore not initialized, attempting to initialize...');
-      const initialized = await initFirebase();
-      if (!initialized || !db) {
-        console.error('Firestore not initialized. Please ensure Firebase is set up correctly.');
-        pinStatus.textContent = 'Error: Firestore not initialized. Please try again later.';
-        return;
-      }
-    }
-
-    let pinnedPoolIds = await loadPinnedPoolIds();
-    if (!pinnedPoolIds.includes(Number(poolId))) {
-      pinStatus.textContent = 'Pool not pinned';
+    if (!isOwner) {
+      pinStatus.textContent = 'Owner access required';
+      console.log('Non-owner attempted to unpin pool');
       return;
     }
 
-    pinnedPoolIds = pinnedPoolIds.filter(id => id !== Number(poolId));
-    await savePinnedPoolIds(pinnedPoolIds);
+    // Ambil pinned pool IDs dari Firestore
+    const db = firebase.firestore();
+    const pinnedPoolDocRef = db.collection('pinnedPools').doc(ADMIN_WALLET);
+    const pinnedPoolDoc = await pinnedPoolDocRef.get();
+    let pinnedPoolIds = pinnedPoolDoc.exists ? pinnedPoolDoc.data().poolIds || [] : [];
 
-    pinStatus.textContent = `Pool ${poolId} unpinned successfully`;
+    if (!pinnedPoolIds.includes(Number(pinPoolId))) {
+      pinStatus.textContent = 'Pool not pinned';
+      console.log(`Pool ${pinPoolId} not pinned`);
+      return;
+    }
+
+    // Hapus pool ID dari pinned list
+    pinnedPoolIds = pinnedPoolIds.filter(id => id !== Number(pinPoolId));
+    await pinnedPoolDocRef.set({ poolIds: pinnedPoolIds }, { merge: true });
+    pinStatus.textContent = `Pool ${pinPoolId} unpinned successfully`;
+    console.log(`Unpinned pool ${pinPoolId}`);
+
+    // Log interaksi
     userInteractions.push({
       wallet: account,
-      action: `Unpin Pool: ${poolId}`,
+      action: `Unpin Pool: ${pinPoolId}`,
       timestamp: Date.now()
     });
-    await saveUserInteraction(account, `Unpin Pool: ${poolId}`);
-    loadOwnerTools();
-    showTab('defaultPool');
+
+    // Refresh Default Pool
+    await loadDefaultPool();
   } catch (error) {
-    console.error('Unpin pool error:', error.message);
+    console.error('Error unpinning pool:', error);
     document.getElementById('pinStatus').textContent = `Error: ${error.message}`;
   }
-}
-
-// Download user interactions as PDF (tetap utuh)
-function downloadUserInteractions() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.setFontSize(12);
-  doc.text('User Interactions Report', 10, 10);
-  let y = 20;
-
-  userInteractions.forEach((interaction, index) => {
-    if (y > 280) {
-      doc.addPage();
-      y = 20;
-    }
-    const date = new Date(interaction.timestamp).toLocaleString();
-    doc.text(
-      `${index + 1}. Wallet: ${interaction.wallet} | Action: ${interaction.action} | Time: ${date}`,
-      10,
-      y
-    );
-    y += 10;
-  });
-
-  doc.save('user_interactions.pdf');
 }
