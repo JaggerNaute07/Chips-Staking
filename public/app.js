@@ -2541,7 +2541,7 @@ async function createPoolCard(poolId, pool, isPinned = false, tabPrefix = '') {
         ${isOwner || pool.creator.toLowerCase() === account.toLowerCase() ? `<p>Pool ID: ${poolId}</p>` : ''}
         <p>Stake: ${stakeTokenTicker}</p>
         <p>Reward Token: ${rewardDisplay}</p>
-        <p>APR: ${Number(aprValue).toLocaleString()}%</p>
+        <p>APR: ${aprValue}%</p>
         <p>Total Staked: ${web3.utils.fromWei(pool.totalStaked || '0', 'ether')} ${stakeTokenTicker}</p>
         <p>Staker: ${pool.stakerCount || 0}</p>
         <p>Lock Period: ${(Number(pool.lockPeriod || 0) / 86400) % 1 === 0 ? Number(pool.lockPeriod / 86400) : (Number(pool.lockPeriod || 0) / 86400).toFixed(1)} days</p>
