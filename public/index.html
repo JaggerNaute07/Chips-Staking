@@ -55,16 +55,19 @@
         <p id="ownerStatus"></p>
     </div>
     
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-<script>
-  window.FIREBASE_API_KEY = 'AIzaSyAQSdCEBaCr-0u7PmCU0x319rjYOIXbCAw';
-  window.FIREBASE_AUTH_DOMAIN = 'chips-staking.firebaseapp.com';
-  window.FIREBASE_PROJECT_ID = 'chips-staking';
-  window.FIREBASE_STORAGE_BUCKET = 'chips-staking.firebasestorage.app';
-  window.FIREBASE_MESSAGING_SENDER_ID = '271418482976';
-  window.FIREBASE_APP_ID = '1:271418482976:web:8a46614ac4f07512a87745';
-</script>
+    <!-- Inject environment variables (dari Vercel ke browser) -->
+    <script>
+      window.env = {
+       FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
+       FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
+       FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+       FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
+       FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID,
+       FIREBASE_APP_ID: process.env.FIREBASE_APP_ID
+     };
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>    
     <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
