@@ -2,6 +2,6 @@
   "name": "chips-staking",
   "version": "1.0.0",
   "scripts": {
-    "build": "echo \"Build success (no-op)\""
+    "build": "node generate-env.js"
   }
 }
