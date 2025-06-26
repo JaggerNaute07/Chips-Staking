@@ -1,8 +1,4 @@
 {
-  "builds": [
-    { "src": "index.html", "use": "@vercel/static" }
-  ],
-  "hooks": {
-    "build": "npm run build"
-  }
+  "buildCommand": "npm run build",
+  "outputDirectory": "public"
 }
