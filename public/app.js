@@ -1510,15 +1510,18 @@ let isNewPoolsHidden = false;
 let isCreatePoolHidden = false;
 let userInteractions = [];
 
-// Firebase setup (gunakan environment variable dari Vercel)
-const firebaseConfig = {
+firebase.initializeApp({
   apiKey: window.env.FIREBASE_API_KEY,
   authDomain: window.env.FIREBASE_AUTH_DOMAIN,
   projectId: window.env.FIREBASE_PROJECT_ID,
   storageBucket: window.env.FIREBASE_STORAGE_BUCKET,
   messagingSenderId: window.env.FIREBASE_MESSAGING_SENDER_ID,
   appId: window.env.FIREBASE_APP_ID
-};
+});
+
+// Setelah initialize, baru akses Firestore
+const db = firebase.firestore();
+
 
 firebase.initializeApp(firebaseConfig);
 
