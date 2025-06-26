@@ -1,0 +1,8 @@
+{
+  "builds": [
+    { "src": "public/index.html", "use": "@vercel/static" }
+  ],
+  "hooks": {
+    "build": "node generate-env.js"
+  }
+}
